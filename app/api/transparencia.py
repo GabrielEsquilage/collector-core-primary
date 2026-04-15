@@ -19,6 +19,7 @@ from app.schemas.transparencia import (
     TransparenciaOrgaoResponse,
 )
 from app.services.transparencia.beneficios import (
+    BeneficioPeriodoInvalidoError,
     collect_auxilio_brasil_municipio,
     collect_auxilio_brasil_municipio_ano,
     collect_novo_bolsa_familia_municipio,
@@ -46,12 +47,15 @@ async def collect_auxilio_brasil(
     payload: AuxilioBrasilCollectRequest,
     db: Session = Depends(get_db),
 ):
-    return await collect_auxilio_brasil_municipio(
-        db,
-        mes_ano=payload.mes_ano,
-        codigo_ibge=payload.codigo_ibge,
-        pagina_inicial=payload.pagina_inicial,
-    )
+    try:
+        return await collect_auxilio_brasil_municipio(
+            db,
+            mes_ano=payload.mes_ano,
+            codigo_ibge=payload.codigo_ibge,
+            pagina_inicial=payload.pagina_inicial,
+        )
+    except (BeneficioPeriodoInvalidoError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post(
@@ -62,12 +66,15 @@ async def collect_auxilio_brasil_periodo(
     payload: AuxilioBrasilCollectPeriodoRequest,
     db: Session = Depends(get_db),
 ):
-    return await collect_auxilio_brasil_municipio_ano(
-        db,
-        ano=payload.ano,
-        codigo_ibge=payload.codigo_ibge,
-        pagina_inicial=payload.pagina_inicial,
-    )
+    try:
+        return await collect_auxilio_brasil_municipio_ano(
+            db,
+            ano=payload.ano,
+            codigo_ibge=payload.codigo_ibge,
+            pagina_inicial=payload.pagina_inicial,
+        )
+    except (BeneficioPeriodoInvalidoError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get(
@@ -81,13 +88,16 @@ def get_auxilio_brasil(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    total, items = list_auxilio_brasil_municipio(
-        db,
-        mes_ano=mes_ano,
-        codigo_ibge=codigo_ibge,
-        limit=limit,
-        offset=offset,
-    )
+    try:
+        total, items = list_auxilio_brasil_municipio(
+            db,
+            mes_ano=mes_ano,
+            codigo_ibge=codigo_ibge,
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return AuxilioBrasilMunicipioListResponse(
         total=total,
         limit=limit,
@@ -104,12 +114,15 @@ async def collect_novo_bolsa_familia(
     payload: NovoBolsaFamiliaCollectRequest,
     db: Session = Depends(get_db),
 ):
-    return await collect_novo_bolsa_familia_municipio(
-        db,
-        mes_ano=payload.mes_ano,
-        codigo_ibge=payload.codigo_ibge,
-        pagina_inicial=payload.pagina_inicial,
-    )
+    try:
+        return await collect_novo_bolsa_familia_municipio(
+            db,
+            mes_ano=payload.mes_ano,
+            codigo_ibge=payload.codigo_ibge,
+            pagina_inicial=payload.pagina_inicial,
+        )
+    except (BeneficioPeriodoInvalidoError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post(
@@ -120,12 +133,15 @@ async def collect_novo_bolsa_familia_periodo(
     payload: NovoBolsaFamiliaCollectPeriodoRequest,
     db: Session = Depends(get_db),
 ):
-    return await collect_novo_bolsa_familia_municipio_ano(
-        db,
-        ano=payload.ano,
-        codigo_ibge=payload.codigo_ibge,
-        pagina_inicial=payload.pagina_inicial,
-    )
+    try:
+        return await collect_novo_bolsa_familia_municipio_ano(
+            db,
+            ano=payload.ano,
+            codigo_ibge=payload.codigo_ibge,
+            pagina_inicial=payload.pagina_inicial,
+        )
+    except (BeneficioPeriodoInvalidoError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get(
@@ -139,13 +155,16 @@ def get_novo_bolsa_familia(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    total, items = list_novo_bolsa_familia_municipio(
-        db,
-        mes_ano=mes_ano,
-        codigo_ibge=codigo_ibge,
-        limit=limit,
-        offset=offset,
-    )
+    try:
+        total, items = list_novo_bolsa_familia_municipio(
+            db,
+            mes_ano=mes_ano,
+            codigo_ibge=codigo_ibge,
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return NovoBolsaFamiliaMunicipioListResponse(
         total=total,
         limit=limit,

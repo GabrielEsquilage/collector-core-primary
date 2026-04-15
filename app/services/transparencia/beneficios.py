@@ -10,6 +10,15 @@ from app.models import (
 from app.services.transparencia.client import TransparenciaClient
 
 
+class BeneficioPeriodoInvalidoError(ValueError):
+    pass
+
+
+AUXILIO_BRASIL_START = date(2021, 11, 1)
+AUXILIO_BRASIL_END = date(2023, 2, 1)
+NOVO_BOLSA_FAMILIA_START = date(2023, 3, 1)
+
+
 def _parse_mes_ano(mes_ano: str) -> date:
     if len(mes_ano) != 6 or not mes_ano.isdigit():
         raise ValueError("mesAno must be in AAAAMM format")
@@ -48,6 +57,74 @@ def _logical_key(row: dict) -> tuple[int, str, date, str]:
         row["tipo_beneficio"],
         row["data_referencia"],
         row["municipio_codigo_ibge"],
+    )
+
+
+def _validate_auxilio_brasil_mes_ano(mes_ano: str) -> None:
+    data_referencia = _parse_mes_ano(mes_ano)
+    if AUXILIO_BRASIL_START <= data_referencia <= AUXILIO_BRASIL_END:
+        return
+
+    if data_referencia.year in {2021, 2023}:
+        raise BeneficioPeriodoInvalidoError(
+            f"mesAno {mes_ano} pertence a um periodo de transicao do Auxilio Brasil. "
+            "Este endpoint aceita apenas competencias entre 202111 e 202302."
+        )
+
+    raise BeneficioPeriodoInvalidoError(
+        f"mesAno {mes_ano} nao pertence ao periodo do Auxilio Brasil. "
+        "Este endpoint aceita apenas competencias entre 202111 e 202302."
+    )
+
+
+def _validate_auxilio_brasil_ano(ano: int) -> None:
+    if ano == 2022:
+        return
+
+    if ano in {2021, 2023}:
+        raise BeneficioPeriodoInvalidoError(
+            f"ano {ano} e um ano de transicao para o Auxilio Brasil. "
+            "Este endpoint anual aceita apenas anos totalmente cobertos pelo beneficio. "
+            "Use a coleta mensal para esse ano."
+        )
+
+    raise BeneficioPeriodoInvalidoError(
+        f"ano {ano} nao pertence ao periodo do Auxilio Brasil. "
+        "Este endpoint anual aceita apenas o ano de 2022."
+    )
+
+
+def _validate_novo_bolsa_familia_mes_ano(mes_ano: str) -> None:
+    data_referencia = _parse_mes_ano(mes_ano)
+    if data_referencia >= NOVO_BOLSA_FAMILIA_START:
+        return
+
+    if data_referencia.year == 2023:
+        raise BeneficioPeriodoInvalidoError(
+            f"mesAno {mes_ano} pertence a um periodo de transicao do Novo Bolsa Familia. "
+            "Este endpoint aceita apenas competencias a partir de 202303."
+        )
+
+    raise BeneficioPeriodoInvalidoError(
+        f"mesAno {mes_ano} nao pertence ao periodo do Novo Bolsa Familia. "
+        "Este endpoint aceita apenas competencias a partir de 202303."
+    )
+
+
+def _validate_novo_bolsa_familia_ano(ano: int) -> None:
+    if ano >= 2024:
+        return
+
+    if ano == 2023:
+        raise BeneficioPeriodoInvalidoError(
+            f"ano {ano} e um ano de transicao para o Novo Bolsa Familia. "
+            "Este endpoint anual aceita apenas anos totalmente cobertos pelo beneficio. "
+            "Use a coleta mensal para esse ano."
+        )
+
+    raise BeneficioPeriodoInvalidoError(
+        f"ano {ano} nao pertence ao periodo do Novo Bolsa Familia. "
+        "Este endpoint anual aceita apenas anos de 2024 em diante."
     )
 
 
@@ -235,6 +312,7 @@ async def collect_auxilio_brasil_municipio(
     codigo_ibge: str,
     pagina_inicial: int = 1,
 ):
+    _validate_auxilio_brasil_mes_ano(mes_ano)
     return await _collect_beneficio_municipio(
         db,
         model=TransparenciaAuxilioBrasilMunicipio,
@@ -252,6 +330,7 @@ async def collect_auxilio_brasil_municipio_ano(
     codigo_ibge: str,
     pagina_inicial: int = 1,
 ):
+    _validate_auxilio_brasil_ano(ano)
     return await _collect_beneficio_municipio_ano(
         db,
         model=TransparenciaAuxilioBrasilMunicipio,
@@ -287,6 +366,7 @@ async def collect_novo_bolsa_familia_municipio(
     codigo_ibge: str,
     pagina_inicial: int = 1,
 ):
+    _validate_novo_bolsa_familia_mes_ano(mes_ano)
     return await _collect_beneficio_municipio(
         db,
         model=TransparenciaNovoBolsaFamiliaMunicipio,
@@ -304,6 +384,7 @@ async def collect_novo_bolsa_familia_municipio_ano(
     codigo_ibge: str,
     pagina_inicial: int = 1,
 ):
+    _validate_novo_bolsa_familia_ano(ano)
     return await _collect_beneficio_municipio_ano(
         db,
         model=TransparenciaNovoBolsaFamiliaMunicipio,
