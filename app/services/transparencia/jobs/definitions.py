@@ -26,50 +26,6 @@ TIPO_CARGA_BENEFICIO_MUNICIPIO = "beneficio_municipio"
 
 RESTRICTED_RESOURCE = "bolsa-familia-por-municipio"
 
-JOB_PLANS_PR: tuple[JobPlan, ...] = (
-    {
-        "job_code": "bf-pr-2018",
-        "descricao": "Bolsa Familia PR 2018",
-        "tipo_beneficio": "bolsa_familia",
-        "resource": "bolsa-familia-por-municipio",
-        "mes_ano_inicio": "201801",
-        "mes_ano_fim": "201812",
-    },
-    {
-        "job_code": "bf-pr-2019",
-        "descricao": "Bolsa Familia PR 2019",
-        "tipo_beneficio": "bolsa_familia",
-        "resource": "bolsa-familia-por-municipio",
-        "mes_ano_inicio": "201901",
-        "mes_ano_fim": "201912",
-    },
-    {
-        "job_code": "bf-pr-2020",
-        "descricao": "Bolsa Familia PR 2020",
-        "tipo_beneficio": "bolsa_familia",
-        "resource": "bolsa-familia-por-municipio",
-        "mes_ano_inicio": "202001",
-        "mes_ano_fim": "202012",
-    },
-    {
-        "job_code": "ab-pr-202111-202302",
-        "descricao": "Auxilio Brasil PR 202111-202302",
-        "tipo_beneficio": "auxilio_brasil",
-        "resource": "auxilio-brasil-por-municipio",
-        "mes_ano_inicio": "202111",
-        "mes_ano_fim": "202302",
-    },
-    {
-        "job_code": "nbf-pr-202303-202601",
-        "descricao": "Novo Bolsa Familia PR 202303-202601",
-        "tipo_beneficio": "novo_bolsa_familia",
-        "resource": "novo-bolsa-familia-por-municipio",
-        "mes_ano_inicio": "202303",
-        "mes_ano_fim": "202601",
-    },
-)
-
-
 def iter_mes_ano(start: str, end: str) -> list[str]:
     current_year = int(start[:4])
     current_month = int(start[4:])
@@ -85,3 +41,37 @@ def iter_mes_ano(start: str, end: str) -> list[str]:
             current_year += 1
 
     return result
+
+
+def _build_monthly_job_plans(
+    *,
+    prefix: str,
+    descricao_prefix: str,
+    tipo_beneficio: str,
+    resource: str,
+    start: str,
+    end: str,
+) -> tuple[JobPlan, ...]:
+    return tuple(
+        {
+            "job_code": f"{prefix}-{mes_ano}",
+            "descricao": f"{descricao_prefix} {mes_ano}",
+            "tipo_beneficio": tipo_beneficio,
+            "resource": resource,
+            "mes_ano_inicio": mes_ano,
+            "mes_ano_fim": mes_ano,
+        }
+        for mes_ano in iter_mes_ano(start, end)
+    )
+
+
+JOB_PLANS_PR: tuple[JobPlan, ...] = (
+    *_build_monthly_job_plans(
+        prefix="bf-pr",
+        descricao_prefix="Bolsa Familia PR",
+        tipo_beneficio="bolsa_familia",
+        resource="bolsa-familia-por-municipio",
+        start="201801",
+        end="201812",
+    ),
+)
