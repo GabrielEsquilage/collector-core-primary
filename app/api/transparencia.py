@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -18,6 +18,9 @@ from app.schemas.transparencia import (
     NovoBolsaFamiliaCollectPeriodoResponse,
     NovoBolsaFamiliaCollectResponse,
     NovoBolsaFamiliaMunicipioListResponse,
+    TransparenciaCargaJobListResponse,
+    TransparenciaCargaJobResponse,
+    TransparenciaCargaJobSeedResponse,
     TransparenciaCollectRequest,
     TransparenciaCollectResponse,
     TransparenciaOrgaoListResponse,
@@ -43,8 +46,78 @@ from app.services.transparencia.collector import (
     list_orgaos_siafi,
     list_orgaos_siape,
 )
+from app.services.transparencia.jobs import (
+    TransparenciaCargaJobConflictError,
+    TransparenciaCargaJobNotFoundError,
+    get_job,
+    list_jobs,
+    queue_job_run,
+    run_job,
+    seed_parana_beneficio_jobs,
+)
 
 router = APIRouter(prefix="/transparencia", tags=["Transparencia"])
+
+
+@router.post(
+    "/jobs/beneficios/parana/seed",
+    response_model=TransparenciaCargaJobSeedResponse,
+)
+def seed_parana_jobs(db: Session = Depends(get_db)):
+    try:
+        created_count, existing_count, jobs = seed_parana_beneficio_jobs(db)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return TransparenciaCargaJobSeedResponse(
+        created_count=created_count,
+        existing_count=existing_count,
+        jobs=jobs,
+    )
+
+
+@router.get("/jobs", response_model=TransparenciaCargaJobListResponse)
+def get_jobs(
+    status: str | None = Query(default=None, min_length=1),
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    total, items = list_jobs(db, status=status, limit=limit, offset=offset)
+    return TransparenciaCargaJobListResponse(
+        total=total,
+        limit=limit,
+        offset=offset,
+        items=items,
+    )
+
+
+@router.get("/jobs/{job_id}", response_model=TransparenciaCargaJobResponse)
+def get_job_by_id(
+    job_id: int,
+    db: Session = Depends(get_db),
+):
+    job = get_job(db, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.post("/jobs/{job_id}/run", response_model=TransparenciaCargaJobResponse, status_code=202)
+def run_job_by_id(
+    job_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    try:
+        job = queue_job_run(db, job_id)
+    except TransparenciaCargaJobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except TransparenciaCargaJobConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    background_tasks.add_task(run_job, job.id)
+    return job
 
 
 @router.post(

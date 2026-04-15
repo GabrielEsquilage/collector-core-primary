@@ -37,6 +37,39 @@ class TransparenciaOrgaoListResponse(BaseModel):
     items: list[TransparenciaOrgaoResponse]
 
 
+class TransparenciaCargaJobResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    job_code: str
+    descricao: str
+    tipo_carga: str
+    status: str
+    metadata_json: dict
+    total_items: int
+    pending_items: int
+    running_items: int
+    success_items: int
+    failed_items: int
+    created_at: datetime
+    updated_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+class TransparenciaCargaJobListResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    items: list[TransparenciaCargaJobResponse]
+
+
+class TransparenciaCargaJobSeedResponse(BaseModel):
+    created_count: int
+    existing_count: int
+    jobs: list[TransparenciaCargaJobResponse]
+
+
 class BeneficioMunicipioCollectRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

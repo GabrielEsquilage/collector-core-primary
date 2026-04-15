@@ -1,5 +1,6 @@
 import asyncio
 import os
+from collections.abc import Awaitable, Callable
 
 import httpx
 
@@ -26,6 +27,7 @@ class TransparenciaClient:
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
         max_retries: int = DEFAULT_MAX_RETRIES,
         backoff_seconds: float = DEFAULT_BACKOFF_SECONDS,
+        before_request: Callable[[str], Awaitable[None]] | None = None,
     ):
         self.base_url = (
             base_url
@@ -38,6 +40,7 @@ class TransparenciaClient:
         self.max_retries = max_retries
         self.backoff_seconds = backoff_seconds
         self.api_key = _resolve_api_key()
+        self.before_request = before_request
 
     async def __aenter__(self):
         self.client = httpx.AsyncClient(
@@ -66,6 +69,8 @@ class TransparenciaClient:
 
         for attempt in range(1, self.max_retries + 1):
             try:
+                if self.before_request is not None:
+                    await self.before_request(resource)
                 response = await self.client.get(f"/{resource.lstrip('/')}", params=params)
                 response.raise_for_status()
                 data = response.json()

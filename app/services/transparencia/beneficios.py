@@ -174,6 +174,7 @@ async def _collect_beneficio_municipio(
     mes_ano: str,
     codigo_ibge: str,
     pagina_inicial: int = 1,
+    before_request=None,
 ):
     data_referencia = _parse_mes_ano(mes_ano)
     pagina = pagina_inicial
@@ -198,7 +199,7 @@ async def _collect_beneficio_municipio(
     }
 
     try:
-        async with TransparenciaClient() as client:
+        async with TransparenciaClient(before_request=before_request) as client:
             while True:
                 records = await client.fetch_page(
                     resource=resource,
@@ -269,6 +270,7 @@ async def _collect_beneficio_municipio_ano(
     ano: int,
     codigo_ibge: str,
     pagina_inicial: int = 1,
+    before_request=None,
 ):
     items = []
     pages_collected = 0
@@ -286,6 +288,7 @@ async def _collect_beneficio_municipio_ano(
             mes_ano=mes_ano,
             codigo_ibge=codigo_ibge,
             pagina_inicial=pagina_inicial,
+            before_request=before_request,
         )
         items.append(
             {
@@ -348,6 +351,7 @@ async def collect_auxilio_brasil_municipio(
     mes_ano: str,
     codigo_ibge: str,
     pagina_inicial: int = 1,
+    before_request=None,
 ):
     _validate_auxilio_brasil_mes_ano(mes_ano)
     return await _collect_beneficio_municipio(
@@ -358,6 +362,7 @@ async def collect_auxilio_brasil_municipio(
         mes_ano=mes_ano,
         codigo_ibge=codigo_ibge,
         pagina_inicial=pagina_inicial,
+        before_request=before_request,
     )
 
 
@@ -366,6 +371,7 @@ async def collect_bolsa_familia_municipio(
     mes_ano: str,
     codigo_ibge: str,
     pagina_inicial: int = 1,
+    before_request=None,
 ):
     _validate_bolsa_familia_mes_ano(mes_ano)
     return await _collect_beneficio_municipio(
@@ -376,6 +382,7 @@ async def collect_bolsa_familia_municipio(
         mes_ano=mes_ano,
         codigo_ibge=codigo_ibge,
         pagina_inicial=pagina_inicial,
+        before_request=before_request,
     )
 
 
@@ -384,6 +391,7 @@ async def collect_auxilio_brasil_municipio_ano(
     ano: int,
     codigo_ibge: str,
     pagina_inicial: int = 1,
+    before_request=None,
 ):
     _validate_auxilio_brasil_ano(ano)
     return await _collect_beneficio_municipio_ano(
@@ -394,6 +402,7 @@ async def collect_auxilio_brasil_municipio_ano(
         ano=ano,
         codigo_ibge=codigo_ibge,
         pagina_inicial=pagina_inicial,
+        before_request=before_request,
     )
 
 
@@ -402,6 +411,7 @@ async def collect_bolsa_familia_municipio_ano(
     ano: int,
     codigo_ibge: str,
     pagina_inicial: int = 1,
+    before_request=None,
 ):
     _validate_bolsa_familia_ano(ano)
     return await _collect_beneficio_municipio_ano(
@@ -412,6 +422,7 @@ async def collect_bolsa_familia_municipio_ano(
         ano=ano,
         codigo_ibge=codigo_ibge,
         pagina_inicial=pagina_inicial,
+        before_request=before_request,
     )
 
 
@@ -456,6 +467,7 @@ async def collect_novo_bolsa_familia_municipio(
     mes_ano: str,
     codigo_ibge: str,
     pagina_inicial: int = 1,
+    before_request=None,
 ):
     _validate_novo_bolsa_familia_mes_ano(mes_ano)
     return await _collect_beneficio_municipio(
@@ -466,6 +478,7 @@ async def collect_novo_bolsa_familia_municipio(
         mes_ano=mes_ano,
         codigo_ibge=codigo_ibge,
         pagina_inicial=pagina_inicial,
+        before_request=before_request,
     )
 
 
@@ -474,6 +487,7 @@ async def collect_novo_bolsa_familia_municipio_ano(
     ano: int,
     codigo_ibge: str,
     pagina_inicial: int = 1,
+    before_request=None,
 ):
     _validate_novo_bolsa_familia_ano(ano)
     return await _collect_beneficio_municipio_ano(
@@ -484,6 +498,7 @@ async def collect_novo_bolsa_familia_municipio_ano(
         ano=ano,
         codigo_ibge=codigo_ibge,
         pagina_inicial=pagina_inicial,
+        before_request=before_request,
     )
 
 
