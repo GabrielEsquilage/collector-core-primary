@@ -127,3 +127,26 @@ class TransparenciaAuxilioBrasilMunicipio(Base):
     quantidade_beneficiados = Column(Integer, nullable=False)
     payload_json = Column(JSON, nullable=False)
     collected_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class TransparenciaNovoBolsaFamiliaMunicipio(Base):
+    __tablename__ = "transparencia_novo_bolsa_familia_municipio"
+    __table_args__ = (
+        UniqueConstraint(
+            "id_externo",
+            "tipo_beneficio",
+            "data_referencia",
+            "municipio_codigo_ibge",
+            name="uq_transparencia_novo_bolsa_familia_municipio_logical",
+        ),
+        {"schema": "datacrypt"},
+    )
+    id = Column(Integer, primary_key=True, index=True)
+    id_externo = Column(Integer, nullable=False, index=True)
+    tipo_beneficio = Column(String(50), nullable=False, index=True)
+    data_referencia = Column(Date, nullable=False, index=True)
+    municipio_codigo_ibge = Column(String(10), nullable=False, index=True)
+    valor = Column(Numeric(18, 2), nullable=False)
+    quantidade_beneficiados = Column(Integer, nullable=False)
+    payload_json = Column(JSON, nullable=False)
+    collected_at = Column(DateTime, nullable=False, default=datetime.utcnow)

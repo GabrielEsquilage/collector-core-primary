@@ -37,7 +37,7 @@ class TransparenciaOrgaoListResponse(BaseModel):
     items: list[TransparenciaOrgaoResponse]
 
 
-class AuxilioBrasilCollectRequest(BaseModel):
+class BeneficioMunicipioCollectRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     mes_ano: str = Field(alias="mesAno")
@@ -45,7 +45,7 @@ class AuxilioBrasilCollectRequest(BaseModel):
     pagina_inicial: int = Field(default=1, alias="pagina")
 
 
-class AuxilioBrasilCollectPeriodoRequest(BaseModel):
+class BeneficioMunicipioCollectPeriodoRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     ano: int = Field(ge=2000, le=2100)
@@ -53,7 +53,7 @@ class AuxilioBrasilCollectPeriodoRequest(BaseModel):
     pagina_inicial: int = Field(default=1, alias="pagina")
 
 
-class AuxilioBrasilCollectResponse(BaseModel):
+class BeneficioMunicipioCollectResponse(BaseModel):
     tipo_beneficio: str
     pages_collected: int
     records_received: int
@@ -61,7 +61,7 @@ class AuxilioBrasilCollectResponse(BaseModel):
     updated: int
 
 
-class AuxilioBrasilCollectPeriodoMesResponse(BaseModel):
+class BeneficioMunicipioCollectPeriodoMesResponse(BaseModel):
     mes_ano: str
     pages_collected: int
     records_received: int
@@ -69,7 +69,7 @@ class AuxilioBrasilCollectPeriodoMesResponse(BaseModel):
     updated: int
 
 
-class AuxilioBrasilCollectPeriodoResponse(BaseModel):
+class BeneficioMunicipioCollectPeriodoResponse(BaseModel):
     tipo_beneficio: str
     codigo_ibge: str
     ano: int
@@ -78,10 +78,10 @@ class AuxilioBrasilCollectPeriodoResponse(BaseModel):
     records_received: int
     inserted: int
     updated: int
-    items: list[AuxilioBrasilCollectPeriodoMesResponse]
+    items: list[BeneficioMunicipioCollectPeriodoMesResponse]
 
 
-class AuxilioBrasilMunicipioResponse(BaseModel):
+class BeneficioMunicipioResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -95,8 +95,70 @@ class AuxilioBrasilMunicipioResponse(BaseModel):
     collected_at: datetime
 
 
+class BeneficioMunicipioListResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    items: list[BeneficioMunicipioResponse]
+
+
+class AuxilioBrasilCollectRequest(BeneficioMunicipioCollectRequest):
+    pass
+
+
+class AuxilioBrasilCollectPeriodoRequest(BeneficioMunicipioCollectPeriodoRequest):
+    pass
+
+
+class AuxilioBrasilCollectResponse(BeneficioMunicipioCollectResponse):
+    pass
+
+
+class AuxilioBrasilCollectPeriodoMesResponse(BeneficioMunicipioCollectPeriodoMesResponse):
+    pass
+
+
+class AuxilioBrasilCollectPeriodoResponse(BeneficioMunicipioCollectPeriodoResponse):
+    items: list[AuxilioBrasilCollectPeriodoMesResponse]
+
+
+class AuxilioBrasilMunicipioResponse(BeneficioMunicipioResponse):
+    pass
+
+
 class AuxilioBrasilMunicipioListResponse(BaseModel):
     total: int
     limit: int
     offset: int
     items: list[AuxilioBrasilMunicipioResponse]
+
+
+class NovoBolsaFamiliaCollectRequest(BeneficioMunicipioCollectRequest):
+    pass
+
+
+class NovoBolsaFamiliaCollectPeriodoRequest(BeneficioMunicipioCollectPeriodoRequest):
+    pass
+
+
+class NovoBolsaFamiliaCollectResponse(BeneficioMunicipioCollectResponse):
+    pass
+
+
+class NovoBolsaFamiliaCollectPeriodoMesResponse(BeneficioMunicipioCollectPeriodoMesResponse):
+    pass
+
+
+class NovoBolsaFamiliaCollectPeriodoResponse(BeneficioMunicipioCollectPeriodoResponse):
+    items: list[NovoBolsaFamiliaCollectPeriodoMesResponse]
+
+
+class NovoBolsaFamiliaMunicipioResponse(BeneficioMunicipioResponse):
+    pass
+
+
+class NovoBolsaFamiliaMunicipioListResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    items: list[NovoBolsaFamiliaMunicipioResponse]
