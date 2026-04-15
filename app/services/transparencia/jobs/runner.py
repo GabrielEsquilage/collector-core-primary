@@ -35,6 +35,13 @@ class JobItemExecutionMetrics(TypedDict):
     updated: int
 
 
+class JobItemContext(TypedDict):
+    item_id: int
+    tipo_beneficio: str
+    mes_ano: str
+    codigo_ibge: str
+
+
 CollectorResult = Mapping[str, str | int]
 BeneficioCollector = Callable[..., Awaitable[CollectorResult]]
 
@@ -53,14 +60,14 @@ def get_item_executor(tipo_beneficio: str) -> BeneficioCollector:
 
 async def execute_job_item(
     db: Session,
-    item: TransparenciaCargaJobItem,
+    item: JobItemContext,
     limiter: PortalRequestRateLimiter,
 ) -> JobItemExecutionMetrics:
-    executor = get_item_executor(item.tipo_beneficio)
+    executor = get_item_executor(item["tipo_beneficio"])
     result = await executor(
         db,
-        mes_ano=item.mes_ano,
-        codigo_ibge=item.codigo_ibge,
+        mes_ano=item["mes_ano"],
+        codigo_ibge=item["codigo_ibge"],
         pagina_inicial=1,
         before_request=limiter.acquire,
     )
@@ -70,6 +77,93 @@ async def execute_job_item(
         "inserted": int(result["inserted"]),
         "updated": int(result["updated"]),
     }
+
+
+def _item_context_from_model(item: TransparenciaCargaJobItem) -> JobItemContext:
+    return {
+        "item_id": int(item.id),
+        "tipo_beneficio": str(item.tipo_beneficio),
+        "mes_ano": str(item.mes_ano),
+        "codigo_ibge": str(item.codigo_ibge),
+    }
+
+
+def _mark_job_running(job_id: int) -> TransparenciaCargaJob | None:
+    with SessionLocal() as db:
+        job = get_job(db, job_id)
+        if job is None:
+            return None
+
+        job.status = JOB_STATUS_RUNNING
+        job.started_at = job.started_at or utcnow()
+        job.finished_at = None
+        db.commit()
+        db.refresh(job)
+        return refresh_job_counts(db, job)
+
+
+def _claim_next_job_item_context(
+    job_id: int,
+    *,
+    max_attempts: int,
+) -> JobItemContext | None:
+    with SessionLocal() as db:
+        item = claim_next_job_item(db, job_id=job_id, max_attempts=max_attempts)
+        if item is None:
+            return None
+        return _item_context_from_model(item)
+
+
+def _refresh_job_counts(job_id: int) -> TransparenciaCargaJob | None:
+    with SessionLocal() as db:
+        job = get_job(db, job_id)
+        if job is None:
+            return None
+        return refresh_job_counts(db, job)
+
+
+def _mark_job_item_success_and_refresh(
+    job_id: int,
+    item_id: int,
+    metrics: JobItemExecutionMetrics,
+) -> TransparenciaCargaJob | None:
+    with SessionLocal() as db:
+        mark_job_item_success(db, item_id, metrics)
+        job = get_job(db, job_id)
+        if job is None:
+            return None
+        return refresh_job_counts(db, job)
+
+
+def _mark_job_item_failed_and_refresh(
+    job_id: int,
+    item_id: int,
+    error_message: str,
+) -> TransparenciaCargaJob | None:
+    with SessionLocal() as db:
+        mark_job_item_failed(db, item_id, error_message)
+        job = get_job(db, job_id)
+        if job is None:
+            return None
+        return refresh_job_counts(db, job)
+
+
+def _finalize_job(job_id: int) -> TransparenciaCargaJob | None:
+    with SessionLocal() as db:
+        job = get_job(db, job_id)
+        if job is None:
+            return None
+        return finalize_job(db, job)
+
+
+def _mark_job_failed(job_id: int) -> None:
+    with SessionLocal() as db:
+        job = get_job(db, job_id)
+        if job is None:
+            return
+        job.status = JOB_STATUS_FAILED
+        job.finished_at = utcnow()
+        db.commit()
 
 
 def finalize_job(db: Session, job: TransparenciaCargaJob) -> TransparenciaCargaJob:
@@ -92,42 +186,37 @@ def finalize_job(db: Session, job: TransparenciaCargaJob) -> TransparenciaCargaJ
 
 
 async def run_job(job_id: int, *, max_attempts: int) -> None:
-    db: Session = SessionLocal()
     try:
-        job = get_job(db, job_id)
+        job = _mark_job_running(job_id)
         if job is None:
             return
-
-        job.status = JOB_STATUS_RUNNING
-        job.started_at = job.started_at or utcnow()
-        job.finished_at = None
-        db.commit()
-        db.refresh(job)
-        job = refresh_job_counts(db, job)
 
         limiter = PortalRequestRateLimiter()
 
         while True:
-            item = claim_next_job_item(db, job_id=job.id, max_attempts=max_attempts)
-            if item is None:
+            item_context = _claim_next_job_item_context(job.id, max_attempts=max_attempts)
+            if item_context is None:
                 break
 
             try:
-                metrics = await execute_job_item(db, item, limiter)
+                with SessionLocal() as db:
+                    metrics = await execute_job_item(db, item_context, limiter)
             except Exception as exc:
-                mark_job_item_failed(db, item.id, str(exc))
+                job = _mark_job_item_failed_and_refresh(
+                    job.id,
+                    item_context["item_id"],
+                    str(exc),
+                )
             else:
-                mark_job_item_success(db, item.id, metrics)
+                job = _mark_job_item_success_and_refresh(
+                    job.id,
+                    item_context["item_id"],
+                    metrics,
+                )
+            if job is None:
+                return
 
-            job = refresh_job_counts(db, job)
-
-        finalize_job(db, job)
+        _finalize_job(job.id)
     except Exception:
-        job = get_job(db, job_id)
-        if job is not None:
-            job.status = JOB_STATUS_FAILED
-            job.finished_at = utcnow()
-            db.commit()
+        _mark_job_failed(job_id)
         raise
-    finally:
-        db.close()
