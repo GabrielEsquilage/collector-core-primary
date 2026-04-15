@@ -8,6 +8,11 @@ from app.schemas.transparencia import (
     AuxilioBrasilCollectPeriodoResponse,
     AuxilioBrasilCollectResponse,
     AuxilioBrasilMunicipioListResponse,
+    BolsaFamiliaCollectPeriodoRequest,
+    BolsaFamiliaCollectPeriodoResponse,
+    BolsaFamiliaCollectRequest,
+    BolsaFamiliaCollectResponse,
+    BolsaFamiliaMunicipioListResponse,
     NovoBolsaFamiliaCollectRequest,
     NovoBolsaFamiliaCollectPeriodoRequest,
     NovoBolsaFamiliaCollectPeriodoResponse,
@@ -22,9 +27,12 @@ from app.services.transparencia.beneficios import (
     BeneficioPeriodoInvalidoError,
     collect_auxilio_brasil_municipio,
     collect_auxilio_brasil_municipio_ano,
+    collect_bolsa_familia_municipio,
+    collect_bolsa_familia_municipio_ano,
     collect_novo_bolsa_familia_municipio,
     collect_novo_bolsa_familia_municipio_ano,
     list_auxilio_brasil_municipio,
+    list_bolsa_familia_municipio,
     list_novo_bolsa_familia_municipio,
 )
 from app.services.transparencia.collector import (
@@ -37,6 +45,73 @@ from app.services.transparencia.collector import (
 )
 
 router = APIRouter(prefix="/transparencia", tags=["Transparencia"])
+
+
+@router.post(
+    "/beneficios/bolsa-familia/collect",
+    response_model=BolsaFamiliaCollectResponse,
+)
+async def collect_bolsa_familia(
+    payload: BolsaFamiliaCollectRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return await collect_bolsa_familia_municipio(
+            db,
+            mes_ano=payload.mes_ano,
+            codigo_ibge=payload.codigo_ibge,
+            pagina_inicial=payload.pagina_inicial,
+        )
+    except (BeneficioPeriodoInvalidoError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post(
+    "/beneficios/bolsa-familia/collect-periodo",
+    response_model=BolsaFamiliaCollectPeriodoResponse,
+)
+async def collect_bolsa_familia_periodo(
+    payload: BolsaFamiliaCollectPeriodoRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return await collect_bolsa_familia_municipio_ano(
+            db,
+            ano=payload.ano,
+            codigo_ibge=payload.codigo_ibge,
+            pagina_inicial=payload.pagina_inicial,
+        )
+    except (BeneficioPeriodoInvalidoError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get(
+    "/beneficios/bolsa-familia",
+    response_model=BolsaFamiliaMunicipioListResponse,
+)
+def get_bolsa_familia(
+    mes_ano: str | None = Query(default=None, alias="mesAno", min_length=6, max_length=6),
+    codigo_ibge: str | None = Query(default=None, alias="codigoIbge", min_length=1),
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    try:
+        total, items = list_bolsa_familia_municipio(
+            db,
+            mes_ano=mes_ano,
+            codigo_ibge=codigo_ibge,
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return BolsaFamiliaMunicipioListResponse(
+        total=total,
+        limit=limit,
+        offset=offset,
+        items=items,
+    )
 
 
 @router.post(

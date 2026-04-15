@@ -106,7 +106,15 @@ class AuxilioBrasilCollectRequest(BeneficioMunicipioCollectRequest):
     pass
 
 
+class BolsaFamiliaCollectRequest(BeneficioMunicipioCollectRequest):
+    pass
+
+
 class AuxilioBrasilCollectPeriodoRequest(BeneficioMunicipioCollectPeriodoRequest):
+    pass
+
+
+class BolsaFamiliaCollectPeriodoRequest(BeneficioMunicipioCollectPeriodoRequest):
     pass
 
 
@@ -114,7 +122,15 @@ class AuxilioBrasilCollectResponse(BeneficioMunicipioCollectResponse):
     pass
 
 
+class BolsaFamiliaCollectResponse(BeneficioMunicipioCollectResponse):
+    pass
+
+
 class AuxilioBrasilCollectPeriodoMesResponse(BeneficioMunicipioCollectPeriodoMesResponse):
+    pass
+
+
+class BolsaFamiliaCollectPeriodoMesResponse(BeneficioMunicipioCollectPeriodoMesResponse):
     pass
 
 
@@ -122,7 +138,15 @@ class AuxilioBrasilCollectPeriodoResponse(BeneficioMunicipioCollectPeriodoRespon
     items: list[AuxilioBrasilCollectPeriodoMesResponse]
 
 
+class BolsaFamiliaCollectPeriodoResponse(BeneficioMunicipioCollectPeriodoResponse):
+    items: list[BolsaFamiliaCollectPeriodoMesResponse]
+
+
 class AuxilioBrasilMunicipioResponse(BeneficioMunicipioResponse):
+    pass
+
+
+class BolsaFamiliaMunicipioResponse(BeneficioMunicipioResponse):
     pass
 
 
@@ -131,6 +155,13 @@ class AuxilioBrasilMunicipioListResponse(BaseModel):
     limit: int
     offset: int
     items: list[AuxilioBrasilMunicipioResponse]
+
+
+class BolsaFamiliaMunicipioListResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    items: list[BolsaFamiliaMunicipioResponse]
 
 
 class NovoBolsaFamiliaCollectRequest(BeneficioMunicipioCollectRequest):

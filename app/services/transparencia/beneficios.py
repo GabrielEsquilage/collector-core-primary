@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     TransparenciaAuxilioBrasilMunicipio,
+    TransparenciaBolsaFamiliaMunicipio,
     TransparenciaNovoBolsaFamiliaMunicipio,
 )
 from app.services.transparencia.client import TransparenciaClient
@@ -14,6 +15,8 @@ class BeneficioPeriodoInvalidoError(ValueError):
     pass
 
 
+BOLSA_FAMILIA_START = date(2013, 1, 1)
+BOLSA_FAMILIA_END = date(2021, 10, 1)
 AUXILIO_BRASIL_START = date(2021, 11, 1)
 AUXILIO_BRASIL_END = date(2023, 2, 1)
 NOVO_BOLSA_FAMILIA_START = date(2023, 3, 1)
@@ -77,6 +80,23 @@ def _validate_auxilio_brasil_mes_ano(mes_ano: str) -> None:
     )
 
 
+def _validate_bolsa_familia_mes_ano(mes_ano: str) -> None:
+    data_referencia = _parse_mes_ano(mes_ano)
+    if BOLSA_FAMILIA_START <= data_referencia <= BOLSA_FAMILIA_END:
+        return
+
+    if data_referencia.year == 2021:
+        raise BeneficioPeriodoInvalidoError(
+            f"mesAno {mes_ano} pertence a um periodo de transicao do Bolsa Familia. "
+            "Este endpoint aceita apenas competencias entre 201301 e 202110."
+        )
+
+    raise BeneficioPeriodoInvalidoError(
+        f"mesAno {mes_ano} nao pertence ao periodo do Bolsa Familia. "
+        "Este endpoint aceita apenas competencias entre 201301 e 202110."
+    )
+
+
 def _validate_auxilio_brasil_ano(ano: int) -> None:
     if ano == 2022:
         return
@@ -91,6 +111,23 @@ def _validate_auxilio_brasil_ano(ano: int) -> None:
     raise BeneficioPeriodoInvalidoError(
         f"ano {ano} nao pertence ao periodo do Auxilio Brasil. "
         "Este endpoint anual aceita apenas o ano de 2022."
+    )
+
+
+def _validate_bolsa_familia_ano(ano: int) -> None:
+    if 2013 <= ano <= 2020:
+        return
+
+    if ano == 2021:
+        raise BeneficioPeriodoInvalidoError(
+            f"ano {ano} e um ano de transicao para o Bolsa Familia. "
+            "Este endpoint anual aceita apenas anos totalmente cobertos pelo beneficio. "
+            "Use a coleta mensal para esse ano."
+        )
+
+    raise BeneficioPeriodoInvalidoError(
+        f"ano {ano} nao pertence ao periodo do Bolsa Familia. "
+        "Este endpoint anual aceita apenas anos de 2013 ate 2020."
     )
 
 
@@ -324,6 +361,24 @@ async def collect_auxilio_brasil_municipio(
     )
 
 
+async def collect_bolsa_familia_municipio(
+    db: Session,
+    mes_ano: str,
+    codigo_ibge: str,
+    pagina_inicial: int = 1,
+):
+    _validate_bolsa_familia_mes_ano(mes_ano)
+    return await _collect_beneficio_municipio(
+        db,
+        model=TransparenciaBolsaFamiliaMunicipio,
+        resource="bolsa-familia-por-municipio",
+        tipo_beneficio="bolsa_familia",
+        mes_ano=mes_ano,
+        codigo_ibge=codigo_ibge,
+        pagina_inicial=pagina_inicial,
+    )
+
+
 async def collect_auxilio_brasil_municipio_ano(
     db: Session,
     ano: int,
@@ -342,6 +397,24 @@ async def collect_auxilio_brasil_municipio_ano(
     )
 
 
+async def collect_bolsa_familia_municipio_ano(
+    db: Session,
+    ano: int,
+    codigo_ibge: str,
+    pagina_inicial: int = 1,
+):
+    _validate_bolsa_familia_ano(ano)
+    return await _collect_beneficio_municipio_ano(
+        db,
+        model=TransparenciaBolsaFamiliaMunicipio,
+        resource="bolsa-familia-por-municipio",
+        tipo_beneficio="bolsa_familia",
+        ano=ano,
+        codigo_ibge=codigo_ibge,
+        pagina_inicial=pagina_inicial,
+    )
+
+
 def list_auxilio_brasil_municipio(
     db: Session,
     mes_ano: str | None = None,
@@ -353,6 +426,24 @@ def list_auxilio_brasil_municipio(
         db,
         model=TransparenciaAuxilioBrasilMunicipio,
         tipo_beneficio="auxilio_brasil",
+        mes_ano=mes_ano,
+        codigo_ibge=codigo_ibge,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def list_bolsa_familia_municipio(
+    db: Session,
+    mes_ano: str | None = None,
+    codigo_ibge: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+):
+    return _list_beneficio_municipio(
+        db,
+        model=TransparenciaBolsaFamiliaMunicipio,
+        tipo_beneficio="bolsa_familia",
         mes_ano=mes_ano,
         codigo_ibge=codigo_ibge,
         limit=limit,
