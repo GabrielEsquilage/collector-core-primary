@@ -1,14 +1,14 @@
 Implemente a primeira integração de benefícios do Portal da Transparência neste repositório, seguindo rigorosamente o AGENTS.md existente e o padrão arquitetural já usado no projeto.
 
 Objetivo desta tarefa:
-- implementar a coleta de “Auxílio Brasil por município”
+- implementar a coleta de “Novo Bolsa Família por município”
 - persistir os dados no Postgres do collector core
 - expor leitura via API interna
 - manter o banco o mais enxuto possível
 - não implementar dashboard nem ETL analítico agora
 
 Endpoint externo:
-GET /api-de-dados/auxilio-brasil-por-municipio
+GET /api-de-dados/novo-bolsa-familia-por-municipio
 
 Base URL:
 https://api.portaldatransparencia.gov.br/api-de-dados
@@ -17,13 +17,13 @@ Autenticação:
 usar a variável de ambiente PORTAL_TRANSPARENCIA_API_KEY no header:
 chave-api-dados: <valor>
 
-Exemplo real de consulta:
+Exemplo de consulta:
 codigoIbge=5300108
-mesAno=202212
+mesAno=202301
 pagina=1
 
 Requisitos funcionais:
-1. Criar integração para coletar dados de Auxílio Brasil por município com paginação por `pagina`
+1. Criar integração para coletar dados de Novo Bolsa Família por município com paginação por `pagina`
 2. Persistir no Postgres somente o mínimo necessário para baixo acoplamento relacional
 3. Expor endpoint interno para consulta dos dados já persistidos
 4. Não chamar a API externa no endpoint de leitura
@@ -56,7 +56,7 @@ Mapeamento esperado do payload externo:
 - municipio.codigoIBGE -> municipio_codigo_ibge
 - valor -> valor
 - quantidadeBeneficiados -> quantidade_beneficiados
-- tipo_beneficio -> valor fixo "auxilio_brasil"
+- tipo_beneficio -> valor fixo "novo_bolsa_familia"
 - payload_json -> resposta original completa
 
 Implementação esperada:
@@ -70,8 +70,8 @@ Implementação esperada:
 - rota GET para ler dados persistidos
 
 Rotas internas desejadas:
-- POST /transparencia/beneficios/auxilio-brasil/collect
-- GET /transparencia/beneficios/auxilio-brasil
+- POST /transparencia/beneficios/novo-bolsa-familia/collect
+- GET /transparencia/beneficios/novo-bolsa-familia
 
 Comportamento da rota POST:
 - aceitar parâmetros de coleta adequados para mesAno, codigoIbge e paginação
@@ -89,7 +89,7 @@ Variáveis de ambiente:
 - PORTAL_TRANSPARENCIA_BASE_URL com default https://api.portaldatransparencia.gov.br/api-de-dados
 
 Critérios de aceite:
-- consigo coletar dados de Auxílio Brasil por município para um codigoIbge e um mesAno
+- consigo coletar dados de Novo Bolsa Família por município para um codigoIbge e um mesAno
 - os dados ficam persistidos no Postgres
 - a leitura interna funciona sem acessar a API externa
 - a tabela salva só o mínimo necessário

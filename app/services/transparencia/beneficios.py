@@ -1,9 +1,12 @@
 from datetime import date, datetime
 from decimal import Decimal
 
+from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
 
 from app.models import (
+    Estado,
+    Municipio,
     TransparenciaAuxilioBrasilMunicipio,
     TransparenciaBolsaFamiliaMunicipio,
     TransparenciaNovoBolsaFamiliaMunicipio,
@@ -165,6 +168,25 @@ def _validate_novo_bolsa_familia_ano(ano: int) -> None:
     )
 
 
+def validate_beneficio_mes_ano(tipo_beneficio: str, mes_ano: str) -> None:
+    validators = {
+        "auxilio_brasil": _validate_auxilio_brasil_mes_ano,
+        "bolsa_familia": _validate_bolsa_familia_mes_ano,
+        "novo_bolsa_familia": _validate_novo_bolsa_familia_mes_ano,
+    }
+    validator = validators.get(tipo_beneficio)
+    if validator is None:
+        raise ValueError(f"Tipo de beneficio nao suportado: {tipo_beneficio}")
+    validator(mes_ano)
+
+
+def _normalize_estado_sigla(estado_sigla: str) -> str:
+    normalized = estado_sigla.strip().upper()
+    if len(normalized) != 2 or not normalized.isalpha():
+        raise ValueError("estadoSigla must contain exactly 2 letters")
+    return normalized
+
+
 async def _collect_beneficio_municipio(
     db: Session,
     *,
@@ -324,6 +346,7 @@ def _list_beneficio_municipio(
     tipo_beneficio: str,
     mes_ano: str | None = None,
     codigo_ibge: str | None = None,
+    estado_sigla: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ):
@@ -334,6 +357,16 @@ def _list_beneficio_municipio(
 
     if codigo_ibge is not None:
         query = query.filter(model.municipio_codigo_ibge == str(codigo_ibge))
+
+    if estado_sigla is not None:
+        query = (
+            query.join(
+                Municipio,
+                cast(Municipio.id_municipio, String) == model.municipio_codigo_ibge,
+            )
+            .join(Estado, Estado.id_estado == Municipio.id_estado)
+            .filter(Estado.sigla == _normalize_estado_sigla(estado_sigla))
+        )
 
     total = query.count()
     items = (
@@ -430,6 +463,7 @@ def list_auxilio_brasil_municipio(
     db: Session,
     mes_ano: str | None = None,
     codigo_ibge: str | None = None,
+    estado_sigla: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ):
@@ -439,6 +473,7 @@ def list_auxilio_brasil_municipio(
         tipo_beneficio="auxilio_brasil",
         mes_ano=mes_ano,
         codigo_ibge=codigo_ibge,
+        estado_sigla=estado_sigla,
         limit=limit,
         offset=offset,
     )
@@ -448,6 +483,7 @@ def list_bolsa_familia_municipio(
     db: Session,
     mes_ano: str | None = None,
     codigo_ibge: str | None = None,
+    estado_sigla: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ):
@@ -457,6 +493,7 @@ def list_bolsa_familia_municipio(
         tipo_beneficio="bolsa_familia",
         mes_ano=mes_ano,
         codigo_ibge=codigo_ibge,
+        estado_sigla=estado_sigla,
         limit=limit,
         offset=offset,
     )
@@ -506,6 +543,7 @@ def list_novo_bolsa_familia_municipio(
     db: Session,
     mes_ano: str | None = None,
     codigo_ibge: str | None = None,
+    estado_sigla: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ):
@@ -515,6 +553,7 @@ def list_novo_bolsa_familia_municipio(
         tipo_beneficio="novo_bolsa_familia",
         mes_ano=mes_ano,
         codigo_ibge=codigo_ibge,
+        estado_sigla=estado_sigla,
         limit=limit,
         offset=offset,
     )

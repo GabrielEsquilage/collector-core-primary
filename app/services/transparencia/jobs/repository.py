@@ -37,11 +37,15 @@ def get_job_by_code(db: Session, job_code: str) -> TransparenciaCargaJob | None:
 
 
 def get_parana_municipio_codigos(db: Session) -> list[str]:
+    return get_estado_municipio_codigos(db, "PR")
+
+
+def get_estado_municipio_codigos(db: Session, estado_sigla: str) -> list[str]:
     rows = cast(
         list[tuple[int]],
         db.query(Municipio.id_municipio)
         .join(Estado, Estado.id_estado == Municipio.id_estado)
-        .filter(Estado.sigla == "PR")
+        .filter(Estado.sigla == estado_sigla.upper())
         .order_by(Municipio.id_municipio.asc())
         .all(),
     )
@@ -101,6 +105,7 @@ def list_jobs(
     db: Session,
     *,
     status: str | None = None,
+    estado_sigla: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> tuple[int, list[TransparenciaCargaJob]]:
@@ -108,6 +113,11 @@ def list_jobs(
 
     if status is not None:
         query = query.filter(TransparenciaCargaJob.status == status)
+
+    if estado_sigla is not None:
+        query = query.filter(
+            TransparenciaCargaJob.metadata_json["estado_sigla"].as_string() == estado_sigla.upper()
+        )
 
     total = int(query.count())
     items = cast(
@@ -261,5 +271,33 @@ def fail_running_job_items(
         item.status = ITEM_STATUS_FAILED
         item.last_error = error_message[:2000]
         item.finished_at = finished_at
+
+    return len(items)
+
+
+def reset_failed_job_items_to_pending(
+    db: Session,
+    *,
+    job_id: int,
+) -> int:
+    items = cast(
+        list[TransparenciaCargaJobItem],
+        db.query(TransparenciaCargaJobItem)
+        .filter(
+            TransparenciaCargaJobItem.job_id == job_id,
+            TransparenciaCargaJobItem.status == ITEM_STATUS_FAILED,
+        )
+        .all(),
+    )
+
+    for item in items:
+        item.status = ITEM_STATUS_PENDING
+        item.last_error = None
+        item.pages_collected = 0
+        item.records_received = 0
+        item.inserted = 0
+        item.updated = 0
+        item.started_at = None
+        item.finished_at = None
 
     return len(items)

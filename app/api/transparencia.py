@@ -20,6 +20,7 @@ from app.schemas.transparencia import (
     NovoBolsaFamiliaMunicipioListResponse,
     TransparenciaCargaJobListResponse,
     TransparenciaCargaJobResponse,
+    TransparenciaCargaJobSeedRequest,
     TransparenciaCargaJobSeedResponse,
     TransparenciaCollectRequest,
     TransparenciaCollectResponse,
@@ -52,7 +53,9 @@ from app.services.transparencia.jobs import (
     get_job,
     list_jobs,
     queue_job_run,
+    reset_job_to_pending,
     run_job,
+    seed_beneficio_jobs,
     seed_parana_beneficio_jobs,
 )
 
@@ -60,12 +63,33 @@ router = APIRouter(prefix="/transparencia", tags=["Transparencia"])
 
 
 @router.post(
+    "/jobs/beneficios/seed",
+    response_model=TransparenciaCargaJobSeedResponse,
+)
+@router.post(
     "/jobs/beneficios/parana/seed",
     response_model=TransparenciaCargaJobSeedResponse,
 )
-def seed_parana_jobs(db: Session = Depends(get_db)):
+def seed_parana_jobs(
+    payload: TransparenciaCargaJobSeedRequest | None = None,
+    db: Session = Depends(get_db),
+):
+    filters = payload or TransparenciaCargaJobSeedRequest()
     try:
-        created_count, existing_count, jobs = seed_parana_beneficio_jobs(db)
+        if payload is None:
+            created_count, existing_count, jobs = seed_parana_beneficio_jobs(db)
+        else:
+            created_count, existing_count, jobs = seed_beneficio_jobs(
+                db,
+                resource=filters.resource,
+                estado_sigla=filters.estado_sigla,
+                ano=filters.ano,
+                mes_ano_inicio=filters.mes_ano_inicio,
+                mes_ano_fim=filters.mes_ano_fim,
+                tipo_beneficio=filters.tipo_beneficio,
+                job_code_prefix=filters.job_code_prefix,
+                descricao_prefix=filters.descricao_prefix,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -79,11 +103,21 @@ def seed_parana_jobs(db: Session = Depends(get_db)):
 @router.get("/jobs", response_model=TransparenciaCargaJobListResponse)
 def get_jobs(
     status: str | None = Query(default=None, min_length=1),
+    estado_sigla: str | None = Query(default=None, alias="estadoSigla", min_length=2, max_length=2),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    total, items = list_jobs(db, status=status, limit=limit, offset=offset)
+    try:
+        total, items = list_jobs(
+            db,
+            status=status,
+            estado_sigla=estado_sigla,
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TransparenciaCargaJobListResponse(
         total=total,
         limit=limit,
@@ -117,6 +151,21 @@ def run_job_by_id(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     background_tasks.add_task(run_job, job.id)
+    return job
+
+
+@router.post("/jobs/{job_id}/reset-pending", response_model=TransparenciaCargaJobResponse)
+def reset_job_pending_by_id(
+    job_id: int,
+    db: Session = Depends(get_db),
+):
+    try:
+        job = reset_job_to_pending(db, job_id)
+    except TransparenciaCargaJobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except TransparenciaCargaJobConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     return job
 
 
@@ -165,6 +214,7 @@ async def collect_bolsa_familia_periodo(
 def get_bolsa_familia(
     mes_ano: str | None = Query(default=None, alias="mesAno", min_length=6, max_length=6),
     codigo_ibge: str | None = Query(default=None, alias="codigoIbge", min_length=1),
+    estado_sigla: str | None = Query(default=None, alias="estadoSigla", min_length=2, max_length=2),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -174,6 +224,7 @@ def get_bolsa_familia(
             db,
             mes_ano=mes_ano,
             codigo_ibge=codigo_ibge,
+            estado_sigla=estado_sigla,
             limit=limit,
             offset=offset,
         )
@@ -232,6 +283,7 @@ async def collect_auxilio_brasil_periodo(
 def get_auxilio_brasil(
     mes_ano: str | None = Query(default=None, alias="mesAno", min_length=6, max_length=6),
     codigo_ibge: str | None = Query(default=None, alias="codigoIbge", min_length=1),
+    estado_sigla: str | None = Query(default=None, alias="estadoSigla", min_length=2, max_length=2),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -241,6 +293,7 @@ def get_auxilio_brasil(
             db,
             mes_ano=mes_ano,
             codigo_ibge=codigo_ibge,
+            estado_sigla=estado_sigla,
             limit=limit,
             offset=offset,
         )
@@ -299,6 +352,7 @@ async def collect_novo_bolsa_familia_periodo(
 def get_novo_bolsa_familia(
     mes_ano: str | None = Query(default=None, alias="mesAno", min_length=6, max_length=6),
     codigo_ibge: str | None = Query(default=None, alias="codigoIbge", min_length=1),
+    estado_sigla: str | None = Query(default=None, alias="estadoSigla", min_length=2, max_length=2),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -308,6 +362,7 @@ def get_novo_bolsa_familia(
             db,
             mes_ano=mes_ano,
             codigo_ibge=codigo_ibge,
+            estado_sigla=estado_sigla,
             limit=limit,
             offset=offset,
         )

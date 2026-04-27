@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class TransparenciaCollectRequest(BaseModel):
@@ -68,6 +69,36 @@ class TransparenciaCargaJobSeedResponse(BaseModel):
     created_count: int
     existing_count: int
     jobs: list[TransparenciaCargaJobResponse]
+
+
+class TransparenciaCargaJobSeedRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    estado_sigla: str = Field(default="PR", alias="estadoSigla", min_length=2, max_length=2)
+    resource: Literal[
+        "bolsa-familia-por-municipio",
+        "auxilio-brasil-por-municipio",
+        "novo-bolsa-familia-por-municipio",
+    ] = "bolsa-familia-por-municipio"
+    tipo_beneficio: Literal["bolsa_familia", "auxilio_brasil", "novo_bolsa_familia"] | None = Field(
+        default=None,
+        alias="tipoBeneficio",
+    )
+    ano: int | None = Field(default=2018, ge=2000, le=2100)
+    mes_ano_inicio: str | None = Field(default=None, alias="mesAnoInicio", min_length=6, max_length=6)
+    mes_ano_fim: str | None = Field(default=None, alias="mesAnoFim", min_length=6, max_length=6)
+    job_code_prefix: str | None = Field(default=None, alias="jobCodePrefix", min_length=1, max_length=50)
+    descricao_prefix: str | None = Field(default=None, alias="descricaoPrefix", min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def validate_period_selector(self):
+        if self.ano is not None and (self.mes_ano_inicio is not None or self.mes_ano_fim is not None):
+            raise ValueError("Informe ano ou mesAnoInicio + mesAnoFim, mas nao ambos")
+
+        if self.ano is None and (self.mes_ano_inicio is None or self.mes_ano_fim is None):
+            raise ValueError("Quando ano nao for informado, envie mesAnoInicio e mesAnoFim")
+
+        return self
 
 
 class BeneficioMunicipioCollectRequest(BaseModel):

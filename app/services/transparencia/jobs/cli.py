@@ -13,6 +13,7 @@ from app.services.transparencia.jobs.service import (
     list_jobs,
     queue_job_run,
     run_job,
+    seed_beneficio_jobs,
     seed_parana_beneficio_jobs,
 )
 
@@ -42,9 +43,35 @@ def init_db_command(_: argparse.Namespace) -> int:
     return 0
 
 
-def seed_command(_: argparse.Namespace) -> int:
+def seed_command(args: argparse.Namespace) -> int:
+    ano = args.ano
+    if ano is None and args.mes_ano_inicio is None and args.mes_ano_fim is None:
+        ano = 2018
+
     with SessionLocal() as db:
-        created_count, existing_count, jobs = seed_parana_beneficio_jobs(db)
+        if (
+            ano == 2018
+            and args.resource == "bolsa-familia-por-municipio"
+            and args.estado_sigla.upper() == "PR"
+            and args.mes_ano_inicio is None
+            and args.mes_ano_fim is None
+            and args.tipo_beneficio is None
+            and args.job_code_prefix is None
+            and args.descricao_prefix is None
+        ):
+            created_count, existing_count, jobs = seed_parana_beneficio_jobs(db)
+        else:
+            created_count, existing_count, jobs = seed_beneficio_jobs(
+                db,
+                resource=args.resource,
+                estado_sigla=args.estado_sigla,
+                ano=ano,
+                mes_ano_inicio=args.mes_ano_inicio,
+                mes_ano_fim=args.mes_ano_fim,
+                tipo_beneficio=args.tipo_beneficio,
+                job_code_prefix=args.job_code_prefix,
+                descricao_prefix=args.descricao_prefix,
+            )
         _print_json(
             {
                 "created_count": created_count,
@@ -60,6 +87,7 @@ def list_jobs_command(args: argparse.Namespace) -> int:
         total, jobs = list_jobs(
             db,
             status=args.status,
+            estado_sigla=args.estado_sigla,
             limit=args.limit,
             offset=args.offset,
         )
@@ -111,10 +139,19 @@ def _build_parser() -> argparse.ArgumentParser:
     init_db_parser.set_defaults(func=init_db_command)
 
     seed_parser = subparsers.add_parser("seed")
+    seed_parser.add_argument("--resource", default="bolsa-familia-por-municipio")
+    seed_parser.add_argument("--estado-sigla", default="PR")
+    seed_parser.add_argument("--ano", type=int)
+    seed_parser.add_argument("--mes-ano-inicio")
+    seed_parser.add_argument("--mes-ano-fim")
+    seed_parser.add_argument("--tipo-beneficio")
+    seed_parser.add_argument("--job-code-prefix")
+    seed_parser.add_argument("--descricao-prefix")
     seed_parser.set_defaults(func=seed_command)
 
     list_parser = subparsers.add_parser("list-jobs")
     list_parser.add_argument("--status")
+    list_parser.add_argument("--estado-sigla")
     list_parser.add_argument("--limit", type=int, default=100)
     list_parser.add_argument("--offset", type=int, default=0)
     list_parser.set_defaults(func=list_jobs_command)

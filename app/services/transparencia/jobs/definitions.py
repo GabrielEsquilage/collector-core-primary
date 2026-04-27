@@ -10,6 +10,12 @@ class JobPlan(TypedDict):
     mes_ano_fim: str
 
 
+class BeneficioResourceConfig(TypedDict):
+    tipo_beneficio: str
+    job_code_prefix: str
+    descricao_prefix: str
+
+
 JOB_STATUS_PENDING = "pending"
 JOB_STATUS_QUEUED = "queued"
 JOB_STATUS_RUNNING = "running"
@@ -25,6 +31,31 @@ ITEM_STATUS_FAILED = "failed"
 TIPO_CARGA_BENEFICIO_MUNICIPIO = "beneficio_municipio"
 
 RESTRICTED_RESOURCE = "bolsa-familia-por-municipio"
+
+RESOURCE_CONFIGS: dict[str, BeneficioResourceConfig] = {
+    "bolsa-familia-por-municipio": {
+        "tipo_beneficio": "bolsa_familia",
+        "job_code_prefix": "bf",
+        "descricao_prefix": "Bolsa Familia",
+    },
+    "auxilio-brasil-por-municipio": {
+        "tipo_beneficio": "auxilio_brasil",
+        "job_code_prefix": "ab",
+        "descricao_prefix": "Auxilio Brasil",
+    },
+    "novo-bolsa-familia-por-municipio": {
+        "tipo_beneficio": "novo_bolsa_familia",
+        "job_code_prefix": "nbf",
+        "descricao_prefix": "Novo Bolsa Familia",
+    },
+}
+
+
+def get_resource_config(resource: str) -> BeneficioResourceConfig:
+    config = RESOURCE_CONFIGS.get(resource)
+    if config is None:
+        raise ValueError(f"Resource nao suportado para seed: {resource}")
+    return config
 
 def iter_mes_ano(start: str, end: str) -> list[str]:
     current_year = int(start[:4])
@@ -65,11 +96,34 @@ def _build_monthly_job_plans(
     )
 
 
+def build_monthly_job_plans(
+    *,
+    estado_sigla: str,
+    resource: str,
+    start: str,
+    end: str,
+    tipo_beneficio: str | None = None,
+    job_code_prefix: str | None = None,
+    descricao_prefix: str | None = None,
+) -> tuple[JobPlan, ...]:
+    config = get_resource_config(resource)
+    resolved_tipo_beneficio = tipo_beneficio or config["tipo_beneficio"]
+    resolved_job_code_prefix = job_code_prefix or f"{config['job_code_prefix']}-{estado_sigla.lower()}"
+    resolved_descricao_prefix = descricao_prefix or f"{config['descricao_prefix']} {estado_sigla.upper()}"
+
+    return _build_monthly_job_plans(
+        prefix=resolved_job_code_prefix,
+        descricao_prefix=resolved_descricao_prefix,
+        tipo_beneficio=resolved_tipo_beneficio,
+        resource=resource,
+        start=start,
+        end=end,
+    )
+
+
 JOB_PLANS_PR: tuple[JobPlan, ...] = (
-    *_build_monthly_job_plans(
-        prefix="bf-pr",
-        descricao_prefix="Bolsa Familia PR",
-        tipo_beneficio="bolsa_familia",
+    *build_monthly_job_plans(
+        estado_sigla="PR",
         resource="bolsa-familia-por-municipio",
         start="201801",
         end="201812",

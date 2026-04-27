@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 .codex
 .env
+frontend-admin/node_modules/
+frontend-admin/dist/
+*.log
+*.md
