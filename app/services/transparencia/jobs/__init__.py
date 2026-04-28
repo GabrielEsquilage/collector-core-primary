@@ -1,4 +1,5 @@
 from app.services.transparencia.jobs.service import (
+    delete_job,
     TransparenciaCargaJobConflictError,
     TransparenciaCargaJobNotFoundError,
     get_job,
@@ -11,6 +12,7 @@ from app.services.transparencia.jobs.service import (
 )
 
 __all__ = [
+    "delete_job",
     "TransparenciaCargaJobConflictError",
     "TransparenciaCargaJobNotFoundError",
     "get_job",

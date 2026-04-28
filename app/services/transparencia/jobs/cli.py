@@ -65,9 +65,11 @@ def seed_command(args: argparse.Namespace) -> int:
                 db,
                 resource=args.resource,
                 estado_sigla=args.estado_sigla,
+                job_granularity=args.job_granularity,
                 ano=ano,
                 mes_ano_inicio=args.mes_ano_inicio,
                 mes_ano_fim=args.mes_ano_fim,
+                municipio_codigos_ibge=args.municipio_codigo_ibge,
                 tipo_beneficio=args.tipo_beneficio,
                 job_code_prefix=args.job_code_prefix,
                 descricao_prefix=args.descricao_prefix,
@@ -141,9 +143,15 @@ def _build_parser() -> argparse.ArgumentParser:
     seed_parser = subparsers.add_parser("seed")
     seed_parser.add_argument("--resource", default="bolsa-familia-por-municipio")
     seed_parser.add_argument("--estado-sigla", default="PR")
+    seed_parser.add_argument(
+        "--job-granularity",
+        default="municipio_mes",
+        choices=("estado_mes", "municipio_mes"),
+    )
     seed_parser.add_argument("--ano", type=int)
     seed_parser.add_argument("--mes-ano-inicio")
     seed_parser.add_argument("--mes-ano-fim")
+    seed_parser.add_argument("--municipio-codigo-ibge", action="append")
     seed_parser.add_argument("--tipo-beneficio")
     seed_parser.add_argument("--job-code-prefix")
     seed_parser.add_argument("--descricao-prefix")

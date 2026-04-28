@@ -6,12 +6,15 @@ from sqlalchemy.orm import Session
 from app.models import TransparenciaCargaJob
 from app.services.transparencia.beneficios import validate_beneficio_mes_ano
 from app.services.transparencia.jobs.definitions import (
+    JOB_GRANULARITY_ESTADO_MES,
+    JOB_GRANULARITY_MUNICIPIO_MES,
     JOB_STATUS_COMPLETED_WITH_ERRORS,
     JOB_STATUS_FAILED,
     JOB_STATUS_PENDING,
     JOB_STATUS_QUEUED,
     JOB_STATUS_RUNNING,
     TIPO_CARGA_BENEFICIO_MUNICIPIO,
+    build_municipio_monthly_job_plans,
     build_monthly_job_plans,
     get_resource_config,
     iter_mes_ano,
@@ -19,8 +22,9 @@ from app.services.transparencia.jobs.definitions import (
 from app.services.transparencia.jobs.repository import (
     count_retryable_failed_items,
     create_job_items,
+    delete_job as repository_delete_job,
     fail_running_job_items,
-    get_estado_municipio_codigos,
+    get_estado_municipios,
     get_job as repository_get_job,
     get_job_by_code,
     get_latest_running_item_started_at,
@@ -80,6 +84,13 @@ def _normalize_estado_sigla(estado_sigla: str) -> str:
     return normalized
 
 
+def _normalize_codigo_ibge(codigo_ibge: str) -> str:
+    normalized = codigo_ibge.strip()
+    if not normalized or not normalized.isdigit():
+        raise ValueError("codigoIbge must contain only digits")
+    return normalized
+
+
 def _validate_mes_ano_value(label: str, value: str) -> None:
     if len(value) != 6 or not value.isdigit():
         raise ValueError(f"{label} must be in AAAAMM format")
@@ -113,14 +124,55 @@ def _resolve_seed_period(
     return mes_ano_inicio, mes_ano_fim
 
 
+def _resolve_target_municipios(
+    db: Session,
+    *,
+    estado_sigla: str,
+    municipio_codigos_ibge: list[str] | None,
+) -> tuple[dict[str, str], ...]:
+    all_municipios = tuple(get_estado_municipios(db, estado_sigla))
+    if not all_municipios:
+        raise ValueError(
+            f"Nao ha municipios do estado {estado_sigla} carregados na base do IBGE."
+        )
+
+    if municipio_codigos_ibge is None:
+        return all_municipios
+
+    municipios_by_code = {item["codigo_ibge"]: item for item in all_municipios}
+    selected: list[dict[str, str]] = []
+    invalid_codes: list[str] = []
+
+    for codigo_ibge in municipio_codigos_ibge:
+        municipio = municipios_by_code.get(str(codigo_ibge))
+        if municipio is None:
+            invalid_codes.append(str(codigo_ibge))
+            continue
+        selected.append(municipio)
+
+    if invalid_codes:
+        invalid_values = ", ".join(sorted(invalid_codes))
+        raise ValueError(
+            "Os seguintes municipios nao pertencem ao estado "
+            f"{estado_sigla}: {invalid_values}"
+        )
+
+    if not selected:
+        raise ValueError("Nenhum municipio valido foi informado para o seed")
+
+    return tuple(selected)
+
+
 def seed_beneficio_jobs(
     db: Session,
     *,
     resource: str,
     estado_sigla: str = "PR",
+    job_granularity: str = JOB_GRANULARITY_MUNICIPIO_MES,
     ano: int | None = None,
     mes_ano_inicio: str | None = None,
     mes_ano_fim: str | None = None,
+    municipio_codigos_ibge: list[str] | None = None,
     tipo_beneficio: str | None = None,
     job_code_prefix: str | None = None,
     descricao_prefix: str | None = None,
@@ -144,21 +196,42 @@ def seed_beneficio_jobs(
     for mes_ano in mes_anos:
         validate_beneficio_mes_ano(resolved_tipo_beneficio, mes_ano)
 
-    municipio_codigos = get_estado_municipio_codigos(db, normalized_estado_sigla)
-    if not municipio_codigos:
-        raise ValueError(
-            f"Nao ha municipios do estado {normalized_estado_sigla} carregados na base do IBGE."
-        )
-
-    plans = build_monthly_job_plans(
+    target_municipios = _resolve_target_municipios(
+        db,
         estado_sigla=normalized_estado_sigla,
-        resource=resource,
-        start=start,
-        end=end,
-        tipo_beneficio=resolved_tipo_beneficio,
-        job_code_prefix=job_code_prefix,
-        descricao_prefix=descricao_prefix,
+        municipio_codigos_ibge=municipio_codigos_ibge,
     )
+
+    if job_granularity == JOB_GRANULARITY_ESTADO_MES:
+        if municipio_codigos_ibge is not None and len(target_municipios) != len(
+            get_estado_municipios(db, normalized_estado_sigla)
+        ):
+            raise ValueError(
+                "Selecao parcial de municipios exige jobGranularity=municipio_mes"
+            )
+        plans = build_monthly_job_plans(
+            estado_sigla=normalized_estado_sigla,
+            resource=resource,
+            start=start,
+            end=end,
+            tipo_beneficio=resolved_tipo_beneficio,
+            job_code_prefix=job_code_prefix,
+            descricao_prefix=descricao_prefix,
+            municipios=len(target_municipios),
+        )
+    elif job_granularity == JOB_GRANULARITY_MUNICIPIO_MES:
+        plans = build_municipio_monthly_job_plans(
+            estado_sigla=normalized_estado_sigla,
+            resource=resource,
+            start=start,
+            end=end,
+            municipios=target_municipios,
+            tipo_beneficio=resolved_tipo_beneficio,
+            job_code_prefix=job_code_prefix,
+            descricao_prefix=descricao_prefix,
+        )
+    else:
+        raise ValueError(f"jobGranularity nao suportado: {job_granularity}")
 
     created_count = 0
     existing_count = 0
@@ -183,11 +256,21 @@ def seed_beneficio_jobs(
                     "resource": plan["resource"],
                     "mes_ano_inicio": plan["mes_ano_inicio"],
                     "mes_ano_fim": plan["mes_ano_fim"],
-                    "municipios": len(municipio_codigos),
+                    "municipios": int(plan["municipios"]),
+                    "job_granularity": plan["job_granularity"],
+                    "municipio_codigo_ibge": plan["municipio_codigo_ibge"],
+                    "municipio_nome": plan["municipio_nome"],
                 },
             )
             db.add(job)
             db.flush()
+
+            if plan["municipio_codigo_ibge"] is None:
+                municipio_codigos = [item["codigo_ibge"] for item in target_municipios]
+                mes_anos = iter_mes_ano(plan["mes_ano_inicio"], plan["mes_ano_fim"])
+            else:
+                municipio_codigos = [str(plan["municipio_codigo_ibge"])]
+                mes_anos = [plan["mes_ano_inicio"]]
 
             create_job_items(
                 db,
@@ -195,7 +278,7 @@ def seed_beneficio_jobs(
                 tipo_beneficio=plan["tipo_beneficio"],
                 resource=plan["resource"],
                 municipio_codigos=municipio_codigos,
-                mes_anos=iter_mes_ano(plan["mes_ano_inicio"], plan["mes_ano_fim"]),
+                mes_anos=mes_anos,
             )
 
             db.commit()
@@ -218,6 +301,7 @@ def seed_parana_beneficio_jobs(
         db,
         resource="bolsa-familia-por-municipio",
         estado_sigla="PR",
+        job_granularity=JOB_GRANULARITY_ESTADO_MES,
         ano=2018,
     )
 
@@ -227,6 +311,7 @@ def list_jobs(
     *,
     status: str | None = None,
     estado_sigla: str | None = None,
+    codigo_ibge: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> tuple[int, list[TransparenciaCargaJob]]:
@@ -234,10 +319,15 @@ def list_jobs(
     if estado_sigla is not None:
         normalized_estado_sigla = _normalize_estado_sigla(estado_sigla)
 
+    normalized_codigo_ibge = None
+    if codigo_ibge is not None:
+        normalized_codigo_ibge = _normalize_codigo_ibge(codigo_ibge)
+
     return repository_list_jobs(
         db,
         status=status,
         estado_sigla=normalized_estado_sigla,
+        codigo_ibge=normalized_codigo_ibge,
         limit=limit,
         offset=offset,
     )
@@ -316,3 +406,28 @@ def reset_job_to_pending(db: Session, job_id: int) -> TransparenciaCargaJob:
     db.commit()
     db.refresh(job)
     return refresh_job_counts(db, job)
+
+
+def delete_job(db: Session, job_id: int) -> None:
+    job: TransparenciaCargaJob | None = repository_get_job(db, job_id)
+    if job is None:
+        raise TransparenciaCargaJobNotFoundError(f"Job {job_id} not found")
+
+    job = refresh_job_counts(db, job)
+
+    if job.status != JOB_STATUS_PENDING:
+        raise TransparenciaCargaJobConflictError(
+            f"Job {job_id} nao esta pending e nao pode ser excluido."
+        )
+
+    if job.started_at is not None or job.finished_at is not None:
+        raise TransparenciaCargaJobConflictError(
+            f"Job {job_id} ja possui historico de execucao e nao pode ser excluido."
+        )
+
+    if job.running_items > 0 or job.success_items > 0 or job.failed_items > 0:
+        raise TransparenciaCargaJobConflictError(
+            f"Job {job_id} ja possui itens processados e nao pode ser excluido."
+        )
+
+    repository_delete_job(db, job)

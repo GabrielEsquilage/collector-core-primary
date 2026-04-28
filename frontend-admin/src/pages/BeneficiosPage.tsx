@@ -108,6 +108,8 @@ export function BeneficiosPage() {
     (accumulator, row) => accumulator + row.quantidade_beneficiados,
     0,
   );
+  const mediaBeneficiados = rows.length === 0 ? 0 : totalBeneficiados / rows.length;
+  const mediaBeneficiadosTruncada = Math.trunc(mediaBeneficiados);
   const totalValor = rows.reduce(
     (accumulator, row) => {
       const parsed = Number.parseFloat(row.valor);
@@ -168,9 +170,9 @@ export function BeneficiosPage() {
           <small>somatório dos itens visíveis</small>
         </article>
         <article className="stat-card accent-amber">
-          <span>Beneficiados</span>
-          <strong>{formatInteger(totalBeneficiados)}</strong>
-          <small>apenas da página atual</small>
+          <span>Média de beneficiados</span>
+          <strong>{formatInteger(mediaBeneficiadosTruncada)}</strong>
+          <small>média dos itens visíveis</small>
         </article>
       </section>
 

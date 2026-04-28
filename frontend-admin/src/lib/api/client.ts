@@ -12,7 +12,7 @@ import type {
 type QueryValue = string | number | boolean | null | undefined;
 
 type RequestOptions = {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "DELETE";
   params?: Record<string, QueryValue>;
   body?: unknown;
   signal?: AbortSignal;
@@ -128,6 +128,10 @@ async function request<T>(path: string, options: RequestOptions = {}) {
     throw new ApiError(response.status, detail);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return (await response.json()) as T;
 }
 
@@ -155,6 +159,7 @@ export const api = {
     params?: {
       status?: string;
       estadoSigla?: string;
+      codigoIbge?: string;
       limit?: number;
       offset?: number;
     },
@@ -178,6 +183,11 @@ export const api = {
   resetJobToPending(jobId: number) {
     return request<Job>(`/transparencia/jobs/${jobId}/reset-pending`, {
       method: "POST",
+    });
+  },
+  deleteJob(jobId: number) {
+    return request<void>(`/transparencia/jobs/${jobId}`, {
+      method: "DELETE",
     });
   },
   seedBeneficioJobs(payload: JobSeedRequest) {

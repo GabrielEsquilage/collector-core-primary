@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -50,6 +50,7 @@ from app.services.transparencia.collector import (
 from app.services.transparencia.jobs import (
     TransparenciaCargaJobConflictError,
     TransparenciaCargaJobNotFoundError,
+    delete_job,
     get_job,
     list_jobs,
     queue_job_run,
@@ -83,9 +84,11 @@ def seed_parana_jobs(
                 db,
                 resource=filters.resource,
                 estado_sigla=filters.estado_sigla,
+                job_granularity=filters.job_granularity,
                 ano=filters.ano,
                 mes_ano_inicio=filters.mes_ano_inicio,
                 mes_ano_fim=filters.mes_ano_fim,
+                municipio_codigos_ibge=filters.municipio_codigos_ibge,
                 tipo_beneficio=filters.tipo_beneficio,
                 job_code_prefix=filters.job_code_prefix,
                 descricao_prefix=filters.descricao_prefix,
@@ -104,6 +107,7 @@ def seed_parana_jobs(
 def get_jobs(
     status: str | None = Query(default=None, min_length=1),
     estado_sigla: str | None = Query(default=None, alias="estadoSigla", min_length=2, max_length=2),
+    codigo_ibge: str | None = Query(default=None, alias="codigoIbge", min_length=1),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -113,6 +117,7 @@ def get_jobs(
             db,
             status=status,
             estado_sigla=estado_sigla,
+            codigo_ibge=codigo_ibge,
             limit=limit,
             offset=offset,
         )
@@ -167,6 +172,21 @@ def reset_job_pending_by_id(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return job
+
+
+@router.delete("/jobs/{job_id}", status_code=204)
+def delete_job_by_id(
+    job_id: int,
+    db: Session = Depends(get_db),
+):
+    try:
+        delete_job(db, job_id)
+    except TransparenciaCargaJobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except TransparenciaCargaJobConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    return Response(status_code=204)
 
 
 @router.post(

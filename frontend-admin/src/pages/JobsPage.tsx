@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type MouseEvent,
+} from "react";
 
 import { EmptyState } from "../components/EmptyState";
 import { PageHeader } from "../components/PageHeader";
@@ -8,7 +14,9 @@ import { StatusBadge } from "../components/StatusBadge";
 import { api, ApiError } from "../lib/api/client";
 import { formatDateTime, formatInteger, formatPercent } from "../lib/format";
 import type {
+  Job,
   JobSeedRequest,
+  PaginatedResponse,
   SeedResource,
   SeedTipoBeneficio,
 } from "../lib/api/types";
@@ -17,6 +25,7 @@ const activeStatuses = new Set(["queued", "running"]);
 const resettableStatuses = new Set(["failed", "completed_with_errors"]);
 
 type SeedMode = "year" | "range";
+type SeedMunicipioMode = "all" | "selected";
 
 type SeedOption = {
   resource: SeedResource;
@@ -30,6 +39,10 @@ type SeedNotice = {
   existingCount: number;
   label: string;
   estadoSigla: string;
+};
+
+type JobActionNotice = {
+  message: string;
 };
 
 const seedOptions: SeedOption[] = [
@@ -103,19 +116,38 @@ function getSeedValidationMessage(mode: SeedMode, ano: string, start: string, en
   return "";
 }
 
+function getMunicipioSelectionValidationMessage(
+  mode: SeedMunicipioMode,
+  selectedCount: number,
+) {
+  if (mode === "selected" && selectedCount === 0) {
+    return "Selecione ao menos um município para criar agendamentos fragmentados.";
+  }
+
+  return "";
+}
+
 export function JobsPage() {
   const [status, setStatus] = useState("");
   const [filterEstadoId, setFilterEstadoId] = useState("");
+  const [filterMunicipioCodigo, setFilterMunicipioCodigo] = useState("");
   const [isSeedModalOpen, setIsSeedModalOpen] = useState(false);
   const [seedNotice, setSeedNotice] = useState<SeedNotice | null>(null);
+  const [jobActionNotice, setJobActionNotice] = useState<JobActionNotice | null>(null);
   const [seedResource, setSeedResource] = useState<SeedResource>(
     "bolsa-familia-por-municipio",
   );
   const [seedEstadoId, setSeedEstadoId] = useState("");
   const [seedMode, setSeedMode] = useState<SeedMode>("year");
+  const [seedMunicipioMode, setSeedMunicipioMode] =
+    useState<SeedMunicipioMode>("all");
   const [seedYear, setSeedYear] = useState("");
   const [seedStart, setSeedStart] = useState("");
   const [seedEnd, setSeedEnd] = useState("");
+  const [seedMunicipioSearch, setSeedMunicipioSearch] = useState("");
+  const [selectedMunicipioCodigos, setSelectedMunicipioCodigos] = useState<string[]>(
+    [],
+  );
   const [jobCodePrefix, setJobCodePrefix] = useState("");
   const [descricaoPrefix, setDescricaoPrefix] = useState("");
   const queryClient = useQueryClient();
@@ -131,6 +163,21 @@ export function JobsPage() {
   const selectedSeedEstado = (estadosQuery.data ?? []).find(
     (estado) => String(estado.id_estado) === seedEstadoId,
   );
+
+  const filterMunicipiosQuery = useQuery({
+    queryKey: ["ibge", "estado-municipios", "filter", filterEstadoId],
+    queryFn: ({ signal }) =>
+      api.getEstadoMunicipios(Number(filterEstadoId), { limit: 1000, offset: 0 }, signal),
+    enabled: Boolean(filterEstadoId),
+  });
+
+  const seedMunicipiosQuery = useQuery({
+    queryKey: ["ibge", "estado-municipios", "seed", seedEstadoId],
+    queryFn: ({ signal }) =>
+      api.getEstadoMunicipios(Number(seedEstadoId), { limit: 1000, offset: 0 }, signal),
+    enabled: Boolean(seedEstadoId),
+  });
+
   const selectedSeedOption = getSeedOption(seedResource);
   const seedValidationMessage = getSeedValidationMessage(
     seedMode,
@@ -138,9 +185,37 @@ export function JobsPage() {
     seedStart,
     seedEnd,
   );
-  const plannedJobs = seedMode === "year" ? 12 : getMonthCount(seedStart, seedEnd);
+  const availableSeedMunicipios = seedMunicipiosQuery.data?.items ?? [];
+  const selectedMunicipiosSet = new Set(selectedMunicipioCodigos);
+  const filteredSeedMunicipios = availableSeedMunicipios.filter((municipio) => {
+    const query = seedMunicipioSearch.trim().toLowerCase();
+    if (query.length === 0) {
+      return true;
+    }
+
+    return (
+      municipio.nome.toLowerCase().includes(query) ||
+      String(municipio.id_municipio).includes(query)
+    );
+  });
+  const seedMunicipioValidationMessage = getMunicipioSelectionValidationMessage(
+    seedMunicipioMode,
+    selectedMunicipioCodigos.length,
+  );
+  const seedFormValidationMessage =
+    seedValidationMessage || seedMunicipioValidationMessage;
+  const monthCount = seedMode === "year" ? 12 : getMonthCount(seedStart, seedEnd);
+  const targetMunicipioCount =
+    seedMunicipioMode === "all"
+      ? availableSeedMunicipios.length
+      : selectedMunicipioCodigos.length;
+  const plannedJobs = monthCount * targetMunicipioCount;
   const shouldShowSeedValidation =
-    seedMode === "year" ? seedYear.length > 0 : seedStart.length > 0 || seedEnd.length > 0;
+    seedMode === "year"
+      ? seedYear.length > 0 || seedMunicipioMode === "selected"
+      : seedStart.length > 0 ||
+        seedEnd.length > 0 ||
+        seedMunicipioMode === "selected";
 
   useEffect(() => {
     if (seedEstadoId || !estadosQuery.data || estadosQuery.data.length === 0) {
@@ -155,13 +230,30 @@ export function JobsPage() {
     }
   }, [seedEstadoId, estadosQuery.data]);
 
+  useEffect(() => {
+    setSelectedMunicipioCodigos([]);
+    setSeedMunicipioSearch("");
+  }, [seedEstadoId]);
+
+  useEffect(() => {
+    setFilterMunicipioCodigo("");
+  }, [filterEstadoId]);
+
+  const jobsQueryKey = [
+    "jobs",
+    status,
+    selectedFilterEstado?.sigla ?? "",
+    filterMunicipioCodigo,
+  ] as const;
+
   const jobsQuery = useQuery({
-    queryKey: ["jobs", status, selectedFilterEstado?.sigla ?? ""],
+    queryKey: jobsQueryKey,
     queryFn: ({ signal }) =>
       api.getJobs(
         {
           status: status || undefined,
           estadoSigla: selectedFilterEstado?.sigla || undefined,
+          codigoIbge: filterMunicipioCodigo || undefined,
           limit: 100,
           offset: 0,
         },
@@ -190,12 +282,58 @@ export function JobsPage() {
 
   const canSubmit =
     Boolean(selectedSeedEstado) &&
-    seedValidationMessage === "" &&
+    targetMunicipioCount > 0 &&
+    seedFormValidationMessage === "" &&
     !seedJobsMutation.isPending;
 
   const runJobMutation = useMutation({
     mutationFn: (jobId: number) => api.runJob(jobId),
-    onSuccess: async () => {
+    onSuccess: async (job) => {
+      const estadoSigla = String(job.metadata_json.estado_sigla ?? "");
+      const municipioCodigoIbge = String(job.metadata_json.municipio_codigo_ibge ?? "");
+      const matchesStatus = !status || status === job.status;
+      const matchesEstado =
+        !selectedFilterEstado?.sigla || selectedFilterEstado.sigla === estadoSigla;
+      const matchesMunicipio =
+        !filterMunicipioCodigo || filterMunicipioCodigo === municipioCodigoIbge;
+      const matchesCurrentFilters = matchesStatus && matchesEstado && matchesMunicipio;
+
+      queryClient.setQueryData<PaginatedResponse<Job>>(jobsQueryKey, (current) => {
+        if (!current) {
+          return current;
+        }
+
+        const itemExists = current.items.some((item) => item.id === job.id);
+        if (!itemExists) {
+          return current;
+        }
+
+        const nextItems = matchesCurrentFilters
+          ? current.items.map((item) => (item.id === job.id ? job : item))
+          : current.items.filter((item) => item.id !== job.id);
+
+        return {
+          ...current,
+          total:
+            matchesCurrentFilters || !itemExists
+              ? current.total
+              : Math.max(0, current.total - 1),
+          items: nextItems,
+        };
+      });
+
+      if (status && status !== job.status) {
+        setJobActionNotice({
+          message:
+            `Job ${job.job_code} foi enfileirado com status ${job.status} ` +
+            `e saiu da lista porque o filtro atual está em ${status}.`,
+        });
+      } else {
+        setJobActionNotice({
+          message: `Job ${job.job_code} foi enfileirado com status ${job.status}.`,
+        });
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["jobs"] });
     },
   });
@@ -209,6 +347,13 @@ export function JobsPage() {
 
   const resetPendingMutation = useMutation({
     mutationFn: (jobId: number) => api.resetJobToPending(jobId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["jobs"] });
+    },
+  });
+
+  const deleteJobMutation = useMutation({
+    mutationFn: (jobId: number) => api.deleteJob(jobId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["jobs"] });
     },
@@ -229,9 +374,12 @@ export function JobsPage() {
 
     setSeedResource("bolsa-familia-por-municipio");
     setSeedMode("year");
+    setSeedMunicipioMode("all");
     setSeedYear("");
     setSeedStart("");
     setSeedEnd("");
+    setSeedMunicipioSearch("");
+    setSelectedMunicipioCodigos([]);
     setJobCodePrefix("");
     setDescricaoPrefix("");
     setSeedEstadoId(defaultEstado ? String(defaultEstado.id_estado) : "");
@@ -260,10 +408,15 @@ export function JobsPage() {
     event.stopPropagation();
   }
 
+  function handleSeedMunicipiosChange(event: ChangeEvent<HTMLSelectElement>) {
+    const values = Array.from(event.currentTarget.selectedOptions, (option) => option.value);
+    setSelectedMunicipioCodigos(values);
+  }
+
   function handleSeedSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!selectedSeedEstado || seedValidationMessage) {
+    if (!selectedSeedEstado || seedFormValidationMessage) {
       return;
     }
 
@@ -273,9 +426,12 @@ export function JobsPage() {
       estadoSigla: selectedSeedEstado.sigla,
       resource: selectedSeedOption.resource,
       tipoBeneficio: selectedSeedOption.tipoBeneficio,
+      jobGranularity: "municipio_mes",
       ano: seedMode === "year" ? Number(seedYear) : null,
       mesAnoInicio: seedMode === "range" ? seedStart : null,
       mesAnoFim: seedMode === "range" ? seedEnd : null,
+      municipioCodigosIbge:
+        seedMunicipioMode === "selected" ? selectedMunicipioCodigos : null,
       jobCodePrefix: jobCodePrefix.trim() || undefined,
       descricaoPrefix: descricaoPrefix.trim() || undefined,
     });
@@ -330,7 +486,7 @@ export function JobsPage() {
       ) : null}
 
       <Panel title="Filtros" description="Refine a visão operacional antes de acionar um lote.">
-        <div className="filter-grid">
+        <div className="filter-grid filter-grid-wide">
           <label className="field">
             <span>Status</span>
             <select value={status} onChange={(event) => setStatus(event.target.value)}>
@@ -354,6 +510,24 @@ export function JobsPage() {
               {(estadosQuery.data ?? []).map((estado) => (
                 <option key={estado.id_estado} value={estado.id_estado}>
                   {estado.sigla} · {estado.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Município</span>
+            <select
+              value={filterMunicipioCodigo}
+              onChange={(event) => setFilterMunicipioCodigo(event.target.value)}
+              disabled={!filterEstadoId || filterMunicipiosQuery.isLoading}
+            >
+              <option value="">
+                {filterEstadoId ? "Todos os municípios" : "Selecione uma UF"}
+              </option>
+              {(filterMunicipiosQuery.data?.items ?? []).map((municipio) => (
+                <option key={municipio.id_municipio} value={municipio.id_municipio}>
+                  {municipio.nome} · {municipio.id_municipio}
                 </option>
               ))}
             </select>
@@ -386,6 +560,16 @@ export function JobsPage() {
             {(resetPendingMutation.error as ApiError).detail}
           </p>
         ) : null}
+        {deleteJobMutation.isError ? (
+          <p className="feedback feedback-error">
+            {(deleteJobMutation.error as ApiError).detail}
+          </p>
+        ) : null}
+        {jobActionNotice ? (
+          <div className="notice-banner notice-banner-success" role="status">
+            {jobActionNotice.message}
+          </div>
+        ) : null}
 
         {!jobsQuery.isLoading && jobs.length === 0 ? (
           <EmptyState
@@ -414,6 +598,10 @@ export function JobsPage() {
                     job.success_items + job.failed_items + job.running_items;
                   const ratio = totalItems > 0 ? processedItems / totalItems : 0;
                   const estado = String(job.metadata_json.estado_sigla ?? "—");
+                  const municipioNome = String(job.metadata_json.municipio_nome ?? "");
+                  const municipioCodigo = String(
+                    job.metadata_json.municipio_codigo_ibge ?? "",
+                  );
                   const start = String(job.metadata_json.mes_ano_inicio ?? "—");
                   const end = String(job.metadata_json.mes_ano_fim ?? "—");
                   const hasExecutionHistory =
@@ -421,6 +609,7 @@ export function JobsPage() {
                     job.started_at !== null ||
                     job.finished_at !== null;
                   const canResetToPending = resettableStatuses.has(job.status);
+                  const canDeleteJob = !hasExecutionHistory && job.status === "pending";
                   const isRunningAction =
                     (runJobMutation.isPending && runJobMutation.variables === job.id) ||
                     (refreshJobMutation.isPending &&
@@ -432,6 +621,10 @@ export function JobsPage() {
                     : isRunningAction
                       ? "Enfileirando..."
                       : "Executar";
+                  const locationLabel =
+                    municipioNome && municipioCodigo
+                      ? `${estado} · ${municipioNome} · ${municipioCodigo}`
+                      : estado;
 
                   return (
                     <tr key={job.id}>
@@ -439,7 +632,7 @@ export function JobsPage() {
                         <div className="cell-title">
                           <strong>{job.job_code}</strong>
                           <span>{job.descricao}</span>
-                          <small>{estado}</small>
+                          <small>{locationLabel}</small>
                         </div>
                       </td>
                       <td data-label="Período">
@@ -474,7 +667,8 @@ export function JobsPage() {
                             disabled={
                               runJobMutation.isPending ||
                               refreshJobMutation.isPending ||
-                              resetPendingMutation.isPending
+                              resetPendingMutation.isPending ||
+                              deleteJobMutation.isPending
                             }
                             onClick={() =>
                               hasExecutionHistory
@@ -491,7 +685,8 @@ export function JobsPage() {
                               disabled={
                                 runJobMutation.isPending ||
                                 refreshJobMutation.isPending ||
-                                resetPendingMutation.isPending
+                                resetPendingMutation.isPending ||
+                                deleteJobMutation.isPending
                               }
                               onClick={() => resetPendingMutation.mutate(job.id)}
                             >
@@ -499,6 +694,32 @@ export function JobsPage() {
                               resetPendingMutation.variables === job.id
                                 ? "Voltando..."
                                 : "Voltar para pending"}
+                            </button>
+                          ) : null}
+                          {canDeleteJob ? (
+                            <button
+                              type="button"
+                              className="button button-secondary"
+                              disabled={
+                                runJobMutation.isPending ||
+                                refreshJobMutation.isPending ||
+                                resetPendingMutation.isPending ||
+                                deleteJobMutation.isPending
+                              }
+                              onClick={() => {
+                                const confirmed = window.confirm(
+                                  `Excluir o agendamento ${job.job_code}?`,
+                                );
+
+                                if (confirmed) {
+                                  deleteJobMutation.mutate(job.id);
+                                }
+                              }}
+                            >
+                              {deleteJobMutation.isPending &&
+                              deleteJobMutation.variables === job.id
+                                ? "Excluindo..."
+                                : "Excluir"}
                             </button>
                           ) : null}
                         </div>
@@ -525,7 +746,10 @@ export function JobsPage() {
               <div className="modal-title-group">
                 <p className="eyebrow">Criação</p>
                 <h3 id="seed-modal-title">Novo agendamento</h3>
-                <p>Defina benefício, UF e período da carga.</p>
+                <p>
+                  Monte a carga no nível mais fragmentado possível: um agendamento por
+                  município e por mês.
+                </p>
               </div>
               <button
                 type="button"
@@ -544,6 +768,11 @@ export function JobsPage() {
             {estadosQuery.isError ? (
               <p className="feedback feedback-error">
                 {(estadosQuery.error as ApiError).detail}
+              </p>
+            ) : null}
+            {seedMunicipiosQuery.isError ? (
+              <p className="feedback feedback-error">
+                {(seedMunicipiosQuery.error as ApiError).detail}
               </p>
             ) : null}
             {seedJobsMutation.isError ? (
@@ -608,11 +837,9 @@ export function JobsPage() {
                   </span>
                 </div>
                 <small>
-                  {seedMode === "year"
-                    ? "Serão gerados 12 agendamentos mensais para o ano informado."
-                    : plannedJobs > 0
-                      ? `${formatInteger(plannedJobs)} agendamentos mensais previstos para o intervalo.`
-                      : "Informe um intervalo válido."}
+                  {plannedJobs > 0
+                    ? `${formatInteger(plannedJobs)} agendamentos município+mês previstos.`
+                    : "Informe o período e os municípios para calcular os agendamentos."}
                 </small>
               </div>
 
@@ -668,6 +895,65 @@ export function JobsPage() {
 
               <div className="filter-grid">
                 <label className="field">
+                  <span>Escopo de municípios</span>
+                  <select
+                    value={seedMunicipioMode}
+                    onChange={(event) =>
+                      setSeedMunicipioMode(event.target.value as SeedMunicipioMode)
+                    }
+                  >
+                    <option value="all">Todos os municípios da UF</option>
+                    <option value="selected">Selecionar municípios específicos</option>
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span>Municípios carregados</span>
+                  <input
+                    type="text"
+                    value={
+                      seedEstadoId && !seedMunicipiosQuery.isLoading
+                        ? `${formatInteger(availableSeedMunicipios.length)} municípios disponíveis`
+                        : "Selecione uma UF"
+                    }
+                    readOnly
+                  />
+                </label>
+              </div>
+
+              {seedMunicipioMode === "selected" ? (
+                <div className="field field-multiline">
+                  <span>Municípios</span>
+                  <input
+                    type="text"
+                    value={seedMunicipioSearch}
+                    onChange={(event) => setSeedMunicipioSearch(event.target.value)}
+                    placeholder="Buscar por nome ou código IBGE"
+                    disabled={!seedEstadoId}
+                  />
+                  <select
+                    multiple
+                    size={12}
+                    value={selectedMunicipioCodigos}
+                    onChange={handleSeedMunicipiosChange}
+                    disabled={!seedEstadoId || seedMunicipiosQuery.isLoading}
+                  >
+                    {filteredSeedMunicipios.map((municipio) => (
+                      <option key={municipio.id_municipio} value={municipio.id_municipio}>
+                        {municipio.nome} · {municipio.id_municipio}
+                      </option>
+                    ))}
+                  </select>
+                  <small>
+                    {selectedMunicipiosSet.size > 0
+                      ? `${formatInteger(selectedMunicipiosSet.size)} municípios selecionados.`
+                      : "Selecione um ou mais municípios na lista."}
+                  </small>
+                </div>
+              ) : null}
+
+              <div className="filter-grid">
+                <label className="field">
                   <span>Prefixo de job code</span>
                   <input
                     type="text"
@@ -688,9 +974,9 @@ export function JobsPage() {
                 </label>
               </div>
 
-              {shouldShowSeedValidation && seedValidationMessage ? (
+              {shouldShowSeedValidation && seedFormValidationMessage ? (
                 <p className="feedback feedback-error seed-feedback">
-                  {seedValidationMessage}
+                  {seedFormValidationMessage}
                 </p>
               ) : null}
 

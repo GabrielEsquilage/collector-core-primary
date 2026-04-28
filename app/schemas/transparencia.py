@@ -84,9 +84,17 @@ class TransparenciaCargaJobSeedRequest(BaseModel):
         default=None,
         alias="tipoBeneficio",
     )
-    ano: int | None = Field(default=2018, ge=2000, le=2100)
+    job_granularity: Literal["estado_mes", "municipio_mes"] = Field(
+        default="municipio_mes",
+        alias="jobGranularity",
+    )
+    ano: int | None = Field(default=None, ge=2000, le=2100)
     mes_ano_inicio: str | None = Field(default=None, alias="mesAnoInicio", min_length=6, max_length=6)
     mes_ano_fim: str | None = Field(default=None, alias="mesAnoFim", min_length=6, max_length=6)
+    municipio_codigos_ibge: list[str] | None = Field(
+        default=None,
+        alias="municipioCodigosIbge",
+    )
     job_code_prefix: str | None = Field(default=None, alias="jobCodePrefix", min_length=1, max_length=50)
     descricao_prefix: str | None = Field(default=None, alias="descricaoPrefix", min_length=1, max_length=100)
 
@@ -97,6 +105,26 @@ class TransparenciaCargaJobSeedRequest(BaseModel):
 
         if self.ano is None and (self.mes_ano_inicio is None or self.mes_ano_fim is None):
             raise ValueError("Quando ano nao for informado, envie mesAnoInicio e mesAnoFim")
+
+        if self.municipio_codigos_ibge is not None:
+            normalized_codes: list[str] = []
+            seen_codes: set[str] = set()
+
+            for raw_value in self.municipio_codigos_ibge:
+                value = str(raw_value).strip()
+                if not value or not value.isdigit():
+                    raise ValueError("municipioCodigosIbge deve conter apenas codigos IBGE numericos")
+
+                if value in seen_codes:
+                    continue
+
+                seen_codes.add(value)
+                normalized_codes.append(value)
+
+            if not normalized_codes:
+                raise ValueError("municipioCodigosIbge nao pode ser vazio quando informado")
+
+            self.municipio_codigos_ibge = normalized_codes
 
         return self
 

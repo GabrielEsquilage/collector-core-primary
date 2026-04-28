@@ -60,9 +60,11 @@ export type JobSeedRequest = {
   estadoSigla: string;
   resource: SeedResource;
   tipoBeneficio?: SeedTipoBeneficio | null;
+  jobGranularity?: "estado_mes" | "municipio_mes";
   ano?: number | null;
   mesAnoInicio?: string | null;
   mesAnoFim?: string | null;
+  municipioCodigosIbge?: string[] | null;
   jobCodePrefix?: string;
   descricaoPrefix?: string;
 };

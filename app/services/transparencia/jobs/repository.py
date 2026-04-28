@@ -36,20 +36,35 @@ def get_job_by_code(db: Session, job_code: str) -> TransparenciaCargaJob | None:
     )
 
 
+def delete_job(db: Session, job: TransparenciaCargaJob) -> None:
+    db.delete(job)
+    db.commit()
+
+
 def get_parana_municipio_codigos(db: Session) -> list[str]:
     return get_estado_municipio_codigos(db, "PR")
 
 
-def get_estado_municipio_codigos(db: Session, estado_sigla: str) -> list[str]:
+def get_estado_municipios(db: Session, estado_sigla: str) -> list[dict[str, str]]:
     rows = cast(
-        list[tuple[int]],
-        db.query(Municipio.id_municipio)
+        list[tuple[int, str]],
+        db.query(Municipio.id_municipio, Municipio.nome)
         .join(Estado, Estado.id_estado == Municipio.id_estado)
         .filter(Estado.sigla == estado_sigla.upper())
         .order_by(Municipio.id_municipio.asc())
         .all(),
     )
-    return [str(municipio_id) for (municipio_id,) in rows]
+    return [
+        {
+            "codigo_ibge": str(municipio_id),
+            "nome": str(nome),
+        }
+        for municipio_id, nome in rows
+    ]
+
+
+def get_estado_municipio_codigos(db: Session, estado_sigla: str) -> list[str]:
+    return [item["codigo_ibge"] for item in get_estado_municipios(db, estado_sigla)]
 
 
 def refresh_job_counts(db: Session, job: TransparenciaCargaJob) -> TransparenciaCargaJob:
@@ -106,6 +121,7 @@ def list_jobs(
     *,
     status: str | None = None,
     estado_sigla: str | None = None,
+    codigo_ibge: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> tuple[int, list[TransparenciaCargaJob]]:
@@ -117,6 +133,11 @@ def list_jobs(
     if estado_sigla is not None:
         query = query.filter(
             TransparenciaCargaJob.metadata_json["estado_sigla"].as_string() == estado_sigla.upper()
+        )
+
+    if codigo_ibge is not None:
+        query = query.filter(
+            TransparenciaCargaJob.metadata_json["municipio_codigo_ibge"].as_string() == str(codigo_ibge)
         )
 
     total = int(query.count())

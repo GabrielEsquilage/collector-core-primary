@@ -16,7 +16,10 @@ from app.services.transparencia.jobs.definitions import (
     JOB_STATUS_FAILED,
     JOB_STATUS_RUNNING,
 )
-from app.services.transparencia.jobs.rate_limit import PortalRequestRateLimiter
+from app.services.transparencia.jobs.rate_limit import (
+    PortalRequestRateLimiter,
+    get_shared_portal_request_limiter,
+)
 from app.services.transparencia.jobs.repository import (
     claim_next_job_item,
     get_job,
@@ -191,7 +194,7 @@ async def run_job(job_id: int, *, max_attempts: int) -> None:
         if job is None:
             return
 
-        limiter = PortalRequestRateLimiter()
+        limiter = get_shared_portal_request_limiter()
 
         while True:
             item_context = _claim_next_job_item_context(job.id, max_attempts=max_attempts)
