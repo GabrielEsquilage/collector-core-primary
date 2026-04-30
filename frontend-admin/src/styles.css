@@ -37,6 +37,10 @@ body,
   min-height: 100%;
 }
 
+html {
+  font-size: 13px;
+}
+
 body {
   margin: 0;
   font-family: var(--font-body);
@@ -71,13 +75,13 @@ code {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 272px minmax(0, 1fr);
+  grid-template-columns: 248px minmax(0, 1fr);
   min-height: 100vh;
   transition: grid-template-columns 160ms ease;
 }
 
 .app-shell-sidebar-collapsed {
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 76px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -349,7 +353,7 @@ code {
 }
 
 .content-shell {
-  padding: 1.75rem;
+  padding: 1.5rem;
 }
 
 .content-topbar {
