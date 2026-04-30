@@ -5,5 +5,8 @@ __pycache__/
 .env
 frontend-admin/node_modules/
 frontend-admin/dist/
+*.tsbuildinfo
+frontend-admin/vite.config.js
+frontend-admin/vite.config.d.ts
 *.log
 *.md

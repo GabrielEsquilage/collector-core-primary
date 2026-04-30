@@ -352,6 +352,19 @@ export function JobsPage() {
     },
   });
 
+  const retryJobMutation = useMutation({
+    mutationFn: async (jobId: number) => {
+      await api.resetJobToPending(jobId);
+      return api.runJob(jobId);
+    },
+    onSuccess: async (job) => {
+      setJobActionNotice({
+        message: `Job ${job.job_code} voltou para pending e foi enfileirado novamente.`,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["jobs"] });
+    },
+  });
+
   const deleteJobMutation = useMutation({
     mutationFn: (jobId: number) => api.deleteJob(jobId),
     onSuccess: async () => {
@@ -560,6 +573,11 @@ export function JobsPage() {
             {(resetPendingMutation.error as ApiError).detail}
           </p>
         ) : null}
+        {retryJobMutation.isError ? (
+          <p className="feedback feedback-error">
+            {(retryJobMutation.error as ApiError).detail}
+          </p>
+        ) : null}
         {deleteJobMutation.isError ? (
           <p className="feedback feedback-error">
             {(deleteJobMutation.error as ApiError).detail}
@@ -610,17 +628,25 @@ export function JobsPage() {
                     job.finished_at !== null;
                   const canResetToPending = resettableStatuses.has(job.status);
                   const canDeleteJob = !hasExecutionHistory && job.status === "pending";
+                  const canRunJob = job.status === "pending";
+                  const canRetryJob = canResetToPending;
                   const isRunningAction =
                     (runJobMutation.isPending && runJobMutation.variables === job.id) ||
                     (refreshJobMutation.isPending &&
-                      refreshJobMutation.variables === job.id);
-                  const actionLabel = hasExecutionHistory
+                      refreshJobMutation.variables === job.id) ||
+                    (retryJobMutation.isPending &&
+                      retryJobMutation.variables === job.id);
+                  const actionLabel = canRunJob
                     ? isRunningAction
-                      ? "Consultando..."
-                      : "Atualizar progresso"
-                    : isRunningAction
                       ? "Enfileirando..."
-                      : "Executar";
+                      : "Executar"
+                    : canRetryJob
+                      ? isRunningAction
+                        ? "Reexecutando..."
+                        : "Atualizar progresso"
+                      : isRunningAction
+                        ? "Consultando..."
+                        : "Atualizar progresso";
                   const locationLabel =
                     municipioNome && municipioCodigo
                       ? `${estado} · ${municipioNome} · ${municipioCodigo}`
@@ -668,16 +694,36 @@ export function JobsPage() {
                               runJobMutation.isPending ||
                               refreshJobMutation.isPending ||
                               resetPendingMutation.isPending ||
+                              retryJobMutation.isPending ||
                               deleteJobMutation.isPending
                             }
                             onClick={() =>
-                              hasExecutionHistory
-                                ? refreshJobMutation.mutate(job.id)
-                                : runJobMutation.mutate(job.id)
+                              canRunJob
+                                ? runJobMutation.mutate(job.id)
+                                : refreshJobMutation.mutate(job.id)
                             }
                           >
                             {actionLabel}
                           </button>
+                          {canRetryJob ? (
+                            <button
+                              type="button"
+                              className="button button-secondary"
+                              disabled={
+                                runJobMutation.isPending ||
+                                refreshJobMutation.isPending ||
+                                resetPendingMutation.isPending ||
+                                retryJobMutation.isPending ||
+                                deleteJobMutation.isPending
+                              }
+                              onClick={() => retryJobMutation.mutate(job.id)}
+                            >
+                              {retryJobMutation.isPending &&
+                              retryJobMutation.variables === job.id
+                                ? "Reexecutando..."
+                                : "Reexecutar"}
+                            </button>
+                          ) : null}
                           {canResetToPending ? (
                             <button
                               type="button"
@@ -686,6 +732,7 @@ export function JobsPage() {
                                 runJobMutation.isPending ||
                                 refreshJobMutation.isPending ||
                                 resetPendingMutation.isPending ||
+                                retryJobMutation.isPending ||
                                 deleteJobMutation.isPending
                               }
                               onClick={() => resetPendingMutation.mutate(job.id)}
@@ -704,6 +751,7 @@ export function JobsPage() {
                                 runJobMutation.isPending ||
                                 refreshJobMutation.isPending ||
                                 resetPendingMutation.isPending ||
+                                retryJobMutation.isPending ||
                                 deleteJobMutation.isPending
                               }
                               onClick={() => {
