@@ -1,7 +1,6 @@
 services:
   postgres:
     image: postgres:16
-    container_name: datacrypt-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -13,6 +12,61 @@ services:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-datacrypt_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-datacrypt_db}
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASS:-postgres}@postgres:5432/${DB_NAME:-datacrypt_db}
+      PORTAL_TRANSPARENCIA_API_KEY: ${PORTAL_TRANSPARENCIA_API_KEY:-}
+      PORTAL_TRANSPARENCIA_BASE_URL: ${PORTAL_TRANSPARENCIA_BASE_URL:-https://api.portaldatransparencia.gov.br/api-de-dados}
+      IBGE_SYNC_ON_STARTUP: ${IBGE_SYNC_ON_STARTUP:-false}
+      TRANSPARENCIA_SYNC_ON_STARTUP: ${TRANSPARENCIA_SYNC_ON_STARTUP:-false}
+      TRANSPARENCIA_JOB_STALE_AFTER_MINUTES: ${TRANSPARENCIA_JOB_STALE_AFTER_MINUTES:-15}
+      PORTAL_TRANSPARENCIA_MAX_REQUESTS_PER_MINUTE: ${PORTAL_TRANSPARENCIA_MAX_REQUESTS_PER_MINUTE:-10}
+      PORTAL_TRANSPARENCIA_MIN_INTERVAL_SECONDS: ${PORTAL_TRANSPARENCIA_MIN_INTERVAL_SECONDS:-5}
+      PORTAL_TRANSPARENCIA_RESTRICTED_REQUESTS_PER_MINUTE: ${PORTAL_TRANSPARENCIA_RESTRICTED_REQUESTS_PER_MINUTE:-10}
+      PORTAL_TRANSPARENCIA_UNRESTRICTED_NIGHT_REQUESTS_PER_MINUTE: ${PORTAL_TRANSPARENCIA_UNRESTRICTED_NIGHT_REQUESTS_PER_MINUTE:-10}
+      PORTAL_TRANSPARENCIA_UNRESTRICTED_DAY_REQUESTS_PER_MINUTE: ${PORTAL_TRANSPARENCIA_UNRESTRICTED_DAY_REQUESTS_PER_MINUTE:-10}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend-admin
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/admin/ >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

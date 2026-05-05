@@ -215,4 +215,48 @@ export const api = {
       },
     );
   },
+  async getAllBeneficios(
+    resource: "bolsa-familia" | "auxilio-brasil" | "novo-bolsa-familia",
+    params?: {
+      estadoSigla?: string;
+      mesAno?: string;
+      codigoIbge?: string;
+    },
+    signal?: AbortSignal,
+  ) {
+    const pageSize = 1000;
+    const firstPage = await request<PaginatedResponse<BeneficioRecord>>(
+      `/transparencia/beneficios/${resource}`,
+      {
+        params: {
+          ...params,
+          limit: pageSize,
+          offset: 0,
+        },
+        signal,
+      },
+    );
+
+    if (firstPage.total <= firstPage.items.length) {
+      return firstPage.items;
+    }
+
+    const items = [...firstPage.items];
+    for (let offset = firstPage.items.length; offset < firstPage.total; offset += pageSize) {
+      const page = await request<PaginatedResponse<BeneficioRecord>>(
+        `/transparencia/beneficios/${resource}`,
+        {
+          params: {
+            ...params,
+            limit: pageSize,
+            offset,
+          },
+          signal,
+        },
+      );
+      items.push(...page.items);
+    }
+
+    return items;
+  },
 };

@@ -99,25 +99,50 @@ export function BeneficiosPage() {
     placeholderData: (previousData) => previousData,
   });
 
+  const beneficiosSummaryQuery = useQuery({
+    queryKey: [
+      "beneficios-summary",
+      resource,
+      selectedEstado?.sigla ?? "",
+      municipioCodigo,
+      mesAno,
+    ],
+    queryFn: ({ signal }) =>
+      api.getAllBeneficios(
+        resource,
+        {
+          estadoSigla: selectedEstado?.sigla || undefined,
+          codigoIbge: municipioCodigo || undefined,
+          mesAno: mesAno || undefined,
+        },
+        signal,
+      ),
+    placeholderData: (previousData) => previousData,
+  });
+
   const rows = beneficiosQuery.data?.items ?? [];
   const total = beneficiosQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeEnd = total === 0 ? 0 : Math.min((page - 1) * pageSize + rows.length, total);
-  const totalBeneficiados = rows.reduce(
+  const summaryRows = beneficiosSummaryQuery.data ?? [];
+  const totalBeneficiados = summaryRows.reduce(
     (accumulator, row) => accumulator + row.quantidade_beneficiados,
     0,
   );
-  const mediaBeneficiados = rows.length === 0 ? 0 : totalBeneficiados / rows.length;
+  const mediaBeneficiados =
+    summaryRows.length === 0 ? 0 : totalBeneficiados / summaryRows.length;
   const mediaBeneficiadosTruncada = Math.trunc(mediaBeneficiados);
-  const totalValor = rows.reduce(
+  const totalValor = summaryRows.reduce(
     (accumulator, row) => {
       const parsed = Number.parseFloat(row.valor);
       return accumulator + (Number.isNaN(parsed) ? 0 : parsed);
     },
     0,
   );
-  const currentBenefit = benefitOptions.find((option) => option.key === resource);
+  const isSummaryPending =
+    (beneficiosSummaryQuery.isLoading || beneficiosSummaryQuery.isFetching) &&
+    !beneficiosSummaryQuery.data;
 
   useEffect(() => {
     if (beneficiosQuery.data && page > totalPages) {
@@ -162,19 +187,25 @@ export function BeneficiosPage() {
         <article className="stat-card accent-teal">
           <span>Registros totais</span>
           <strong>{formatInteger(total)}</strong>
-          <small>{currentBenefit?.label}</small>
+          <small>total do filtro atual</small>
         </article>
         <article className="stat-card accent-copper">
           <span>Valor listado</span>
-          <strong>{formatCurrency(totalValor)}</strong>
-          <small>somatório dos itens visíveis</small>
+          <strong>{isSummaryPending ? "..." : formatCurrency(totalValor)}</strong>
+          <small>somatório de todas as páginas do filtro</small>
         </article>
         <article className="stat-card accent-amber">
           <span>Média de beneficiados</span>
-          <strong>{formatInteger(mediaBeneficiadosTruncada)}</strong>
-          <small>média dos itens visíveis</small>
+          <strong>{isSummaryPending ? "..." : formatInteger(mediaBeneficiadosTruncada)}</strong>
+          <small>média de todas as páginas do filtro</small>
         </article>
       </section>
+
+      {beneficiosSummaryQuery.isError ? (
+        <p className="feedback feedback-error">
+          {(beneficiosSummaryQuery.error as ApiError).detail}
+        </p>
+      ) : null}
 
       <Panel title="Filtros" description="Use a base do IBGE para evitar digitação manual de código.">
         <div className="filter-grid filter-grid-wide">

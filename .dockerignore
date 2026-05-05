@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+frontend-admin/node_modules
+frontend-admin/dist
+frontend-admin/*.tsbuildinfo
+frontend-admin/vite.config.js
+frontend-admin/vite.config.d.ts
+*.log
