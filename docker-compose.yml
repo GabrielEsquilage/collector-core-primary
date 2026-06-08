@@ -55,21 +55,5 @@ services:
       timeout: 5s
       retries: 5
 
-  frontend:
-    build:
-      context: ./frontend-admin
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-    ports:
-      - "5173:80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/admin/ >/dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
 volumes:
   postgres_data:

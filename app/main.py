@@ -1,13 +1,11 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
-from pathlib import Path
-
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, HTMLResponse
-from starlette.responses import RedirectResponse
 from sqlalchemy import text
 
+import os
+from fastapi.middleware.cors import CORSMiddleware
 from app import models
 from app.api.transparencia import router as transparencia_router
 from app.api.routes.ibge import router as ibge_router
@@ -15,8 +13,7 @@ from app.database import Base, engine
 from app.services.startup_sync import start_startup_sync
 
 logging.basicConfig(level=logging.INFO)
-ADMIN_DIST_DIR = Path(__file__).resolve().parents[1] / "frontend-admin" / "dist"
-ADMIN_INDEX_FILE = ADMIN_DIST_DIR / "index.html"
+
 
 
 def init_db():
@@ -41,6 +38,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="DataCrypt Collector", lifespan=lifespan)
 
+cors_origins_str = os.getenv("CORS_ORIGINS", "")
+if cors_origins_str:
+    cors_origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
+else:
+    cors_origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 
 @app.get("/health")
 def health():
@@ -62,39 +74,3 @@ app.include_router(ibge_router, prefix="/api/v1")
 app.include_router(transparencia_router, prefix="/api/v1")
 
 
-def _get_admin_index() -> Path | None:
-    if ADMIN_INDEX_FILE.exists():
-        return ADMIN_INDEX_FILE
-    return None
-
-
-@app.get("/admin", include_in_schema=False)
-def redirect_admin_root():
-    return RedirectResponse(url="/admin/")
-
-
-@app.get("/admin/", include_in_schema=False)
-@app.get("/admin/{full_path:path}", include_in_schema=False)
-def serve_admin(full_path: str = ""):
-    requested_path = (ADMIN_DIST_DIR / full_path).resolve()
-
-    try:
-        requested_path.relative_to(ADMIN_DIST_DIR.resolve())
-    except ValueError:
-        return HTMLResponse("Caminho invalido.", status_code=400)
-
-    if full_path and requested_path.is_file():
-        return FileResponse(requested_path)
-
-    admin_index = _get_admin_index()
-    if admin_index is None:
-        return HTMLResponse(
-            (
-                "<h1>Admin frontend nao encontrado</h1>"
-                "<p>Execute <code>npm run build</code> em <code>frontend-admin</code> "
-                "antes de abrir <code>/admin</code>.</p>"
-            ),
-            status_code=503,
-        )
-
-    return FileResponse(admin_index)
