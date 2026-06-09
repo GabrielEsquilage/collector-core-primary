@@ -15,8 +15,8 @@ O backend foi atualizado (na branch `feature/admin-auditoria-jobs`) para expor u
 
 ### 2. Consumo de API
 * **Rota Principal (Listagem):** `GET /api/v1/admin/audit/jobs`
-  * **Parâmetros:** Aceita paginação (`limit`, `offset`).
-  * **Retorno:** Retorna apenas os jobs que estão com o status `running` ou `completed`. O backend já faz o filtro internamente.
+  * **Parâmetros:** Aceita paginação (`limit`, `offset`), filtro de status opcional (`status=running` ou `status=completed`), e filtro de município (`codigo_ibge=1234567`). Se o `status` não for fornecido, retorna ambos (running e completed).
+  * **Retorno:** Retorna os jobs de auditoria. O backend já garante que apenas jobs de auditoria apareçam.
 * **Rota de Detalhes (Itens do Job):** `GET /api/v1/admin/audit/jobs/{job_id}/items`
   * **Parâmetros:** Apenas `limit` e `offset`. **NÃO inclua opções de filtragem por status na interface de detalhes.** O usuário quer ver tudo que pertence àquele job diretamente.
   * **Retorno:** Retorna os sub-itens do job selecionado. O JSON de resposta possui um array `items` com os seguintes campos que **devem** ser exibidos numa tabela detalhada:
@@ -28,8 +28,16 @@ O backend foi atualizado (na branch `feature/admin-auditoria-jobs`) para expor u
     - `records_received` (Registros recebidos)
     - `last_error` (O log de erro, se houver)
     - `started_at` e `finished_at` (Datas de execução)
+* **Rota de Consulta de Payload:** `GET /api/v1/admin/audit/items/{item_id}/payloads`
+  * **Parâmetros:** Nenhum.
+  * **Retorno:** Retorna um array com todos os JSONs originais coletados para aquele item.
 
-### 3. O que exibir na Tabela de Auditoria
+### 3. O que exibir na Tabela de Auditoria Principal
+**Acima da Tabela (Filtros Opcionais):**
+* Adicione um campo/select para filtrar por **Status** (`running` ou `completed`).
+* Adicione um campo para filtrar por **Município** (esperando o `codigo_ibge`, mas você pode usar o componente de busca de municípios que já existe no projeto para enviar o código correto).
+* Quando preenchidos, passe-os como `?status=...&codigo_ibge=...` para a rota principal `/audit/jobs`.
+
 A tabela de auditoria deve focar na transparência das requisições e no progresso. As informações retornadas em cada item contêm o objeto `metadata_json`, que representa as "informações da request" solicitadas pelo usuário.
 Você deve exibir em colunas:
 1. **Código do Job (`job_code`)**
@@ -42,7 +50,8 @@ Você deve exibir em colunas:
 5. **Datas:**
    * Exibir `started_at` (Início) e `finished_at` (Fim).
 6. **Ação "Ver Detalhes":**
-   * Em cada linha do job na tabela, crie um botão "Ver Detalhes" ou adicione um comportamento de expandir a linha. Quando o usuário clicar, consuma a **Rota de Detalhes** passando o ID do job para listar todos os sub-itens e exibir em uma tabela menor ou modal. Isso permite ver qual município exatamente falhou e qual foi a mensagem (`last_error`).
+   * Em cada linha do job na tabela principal, crie um botão "Ver Detalhes". Quando o usuário clicar, consuma a **Rota de Detalhes** (`/audit/jobs/{job_id}/items`) passando o ID do job para listar todos os sub-itens.
+   * **IMPORTANTE:** Para cada linha dessa tabela de sub-itens, se o `status` for `success`, exiba um botão **"Ver Payload"**. Ao clicar, faça uma requisição para a **Rota de Consulta de Payload** (`/audit/items/{item_id}/payloads`) passando o `id` daquele sub-item e exiba o JSON retornado formatado bonito na tela (um modal com `<pre>` ou um visualizador JSON embutido). Isso é essencial!
 
 ### 4. Regras de Ouro
 * Mantenha as cores e o Design System atual da aplicação.

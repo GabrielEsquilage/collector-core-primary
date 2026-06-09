@@ -344,3 +344,8 @@ def list_job_items(
         query.order_by(TransparenciaCargaJobItem.id.asc()).offset(offset).limit(limit).all()
     )
     return total, items
+
+
+def get_job_item(db: Session, item_id: int) -> TransparenciaCargaJobItem | None:
+    return db.query(TransparenciaCargaJobItem).filter(TransparenciaCargaJobItem.id == item_id).first()
+
