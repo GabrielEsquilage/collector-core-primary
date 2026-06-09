@@ -18,8 +18,16 @@ O backend foi atualizado (na branch `feature/admin-auditoria-jobs`) para expor u
   * **Parâmetros:** Aceita paginação (`limit`, `offset`).
   * **Retorno:** Retorna apenas os jobs que estão com o status `running` ou `completed`. O backend já faz o filtro internamente.
 * **Rota de Detalhes (Itens do Job):** `GET /api/v1/admin/audit/jobs/{job_id}/items`
-  * **Parâmetros:** `limit`, `offset`, e filtro opcional por `status`.
-  * **Retorno:** Retorna os sub-itens do job selecionado (por ex: cada município e mês coletado). Aqui você encontrará o campo `last_error` se o item falhou.
+  * **Parâmetros:** Apenas `limit` e `offset`. **NÃO inclua opções de filtragem por status na interface de detalhes.** O usuário quer ver tudo que pertence àquele job diretamente.
+  * **Retorno:** Retorna os sub-itens do job selecionado. O JSON de resposta possui um array `items` com os seguintes campos que **devem** ser exibidos numa tabela detalhada:
+    - `codigo_ibge` (Código do Município)
+    - `mes_ano` (Mês e Ano)
+    - `status` (Status do item, ex: success, failed)
+    - `attempts` (Número de tentativas)
+    - `pages_collected` (Páginas coletadas)
+    - `records_received` (Registros recebidos)
+    - `last_error` (O log de erro, se houver)
+    - `started_at` e `finished_at` (Datas de execução)
 
 ### 3. O que exibir na Tabela de Auditoria
 A tabela de auditoria deve focar na transparência das requisições e no progresso. As informações retornadas em cada item contêm o objeto `metadata_json`, que representa as "informações da request" solicitadas pelo usuário.
