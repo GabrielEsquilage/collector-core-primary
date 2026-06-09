@@ -32,11 +32,6 @@ async def lifespan(app: FastAPI):
     await start_jobs_worker(app)
     yield
     await stop_jobs_worker(app)
-    task = getattr(app.state, "startup_sync_task", None)
-    if task is not None and not task.done():
-        task.cancel()
-        with suppress(asyncio.CancelledError):
-            await task
 
 
 app = FastAPI(title="DataCrypt Collector", lifespan=lifespan)
@@ -73,7 +68,8 @@ def health_startup_sync():
     }
 
 
+from app.api.routes.admin import router as admin_router
+
 app.include_router(ibge_router, prefix="/api/v1")
 app.include_router(transparencia_router, prefix="/api/v1")
-
-
+app.include_router(admin_router, prefix="/api/v1/admin")

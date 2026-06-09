@@ -119,7 +119,7 @@ def create_job_items(
 def list_jobs(
     db: Session,
     *,
-    status: str | None = None,
+    status: str | list[str] | None = None,
     estado_sigla: str | None = None,
     codigo_ibge: str | None = None,
     limit: int = 100,
@@ -128,7 +128,10 @@ def list_jobs(
     query = db.query(TransparenciaCargaJob)
 
     if status is not None:
-        query = query.filter(TransparenciaCargaJob.status == status)
+        if isinstance(status, list):
+            query = query.filter(TransparenciaCargaJob.status.in_(status))
+        else:
+            query = query.filter(TransparenciaCargaJob.status == status)
 
     if estado_sigla is not None:
         query = query.filter(

@@ -309,7 +309,7 @@ def seed_parana_beneficio_jobs(
 def list_jobs(
     db: Session,
     *,
-    status: str | None = None,
+    status: str | list[str] | None = None,
     estado_sigla: str | None = None,
     codigo_ibge: str | None = None,
     limit: int = 100,
