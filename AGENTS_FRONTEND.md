@@ -14,9 +14,12 @@ O backend foi atualizado (na branch `feature/admin-auditoria-jobs`) para expor u
 * **Página Nova:** Crie uma rota e um componente de página dedicado (`AuditPage.tsx` ou `.vue` dependendo do seu framework) para abrigar a listagem.
 
 ### 2. Consumo de API
-* **Rota do Backend:** `GET /api/v1/admin/audit/jobs`
-* **Parâmetros:** Aceita paginação (`limit`, `offset`).
-* **Retorno:** Retorna apenas os jobs que estão com o status `running` ou `completed`. O backend já faz o filtro internamente.
+* **Rota Principal (Listagem):** `GET /api/v1/admin/audit/jobs`
+  * **Parâmetros:** Aceita paginação (`limit`, `offset`).
+  * **Retorno:** Retorna apenas os jobs que estão com o status `running` ou `completed`. O backend já faz o filtro internamente.
+* **Rota de Detalhes (Itens do Job):** `GET /api/v1/admin/audit/jobs/{job_id}/items`
+  * **Parâmetros:** `limit`, `offset`, e filtro opcional por `status`.
+  * **Retorno:** Retorna os sub-itens do job selecionado (por ex: cada município e mês coletado). Aqui você encontrará o campo `last_error` se o item falhou.
 
 ### 3. O que exibir na Tabela de Auditoria
 A tabela de auditoria deve focar na transparência das requisições e no progresso. As informações retornadas em cada item contêm o objeto `metadata_json`, que representa as "informações da request" solicitadas pelo usuário.
@@ -30,6 +33,8 @@ Você deve exibir em colunas:
    * Mostrar os totais de itens: `success_items` (completados), `failed_items` (com erro) em relação ao `total_items`.
 5. **Datas:**
    * Exibir `started_at` (Início) e `finished_at` (Fim).
+6. **Ação "Ver Detalhes":**
+   * Em cada linha do job na tabela, crie um botão "Ver Detalhes" ou adicione um comportamento de expandir a linha. Quando o usuário clicar, consuma a **Rota de Detalhes** passando o ID do job para listar todos os sub-itens e exibir em uma tabela menor ou modal. Isso permite ver qual município exatamente falhou e qual foi a mensagem (`last_error`).
 
 ### 4. Regras de Ouro
 * Mantenha as cores e o Design System atual da aplicação.

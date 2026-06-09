@@ -325,3 +325,22 @@ def reset_failed_job_items_to_pending(
         item.finished_at = None
 
     return len(items)
+
+
+def list_job_items(
+    db: Session,
+    job_id: int,
+    status: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> tuple[int, list[TransparenciaCargaJobItem]]:
+    query = db.query(TransparenciaCargaJobItem).filter(TransparenciaCargaJobItem.job_id == job_id)
+    if status:
+        query = query.filter(TransparenciaCargaJobItem.status == status)
+
+    total = int(query.count())
+    items = cast(
+        list[TransparenciaCargaJobItem],
+        query.order_by(TransparenciaCargaJobItem.id.asc()).offset(offset).limit(limit).all()
+    )
+    return total, items
