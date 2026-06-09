@@ -119,7 +119,7 @@ def create_job_items(
 def list_jobs(
     db: Session,
     *,
-    status: str | None = None,
+    status: str | list[str] | None = None,
     estado_sigla: str | None = None,
     codigo_ibge: str | None = None,
     limit: int = 100,
@@ -128,7 +128,10 @@ def list_jobs(
     query = db.query(TransparenciaCargaJob)
 
     if status is not None:
-        query = query.filter(TransparenciaCargaJob.status == status)
+        if isinstance(status, list):
+            query = query.filter(TransparenciaCargaJob.status.in_(status))
+        else:
+            query = query.filter(TransparenciaCargaJob.status == status)
 
     if estado_sigla is not None:
         query = query.filter(
@@ -322,3 +325,27 @@ def reset_failed_job_items_to_pending(
         item.finished_at = None
 
     return len(items)
+
+
+def list_job_items(
+    db: Session,
+    job_id: int,
+    status: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> tuple[int, list[TransparenciaCargaJobItem]]:
+    query = db.query(TransparenciaCargaJobItem).filter(TransparenciaCargaJobItem.job_id == job_id)
+    if status:
+        query = query.filter(TransparenciaCargaJobItem.status == status)
+
+    total = int(query.count())
+    items = cast(
+        list[TransparenciaCargaJobItem],
+        query.order_by(TransparenciaCargaJobItem.id.asc()).offset(offset).limit(limit).all()
+    )
+    return total, items
+
+
+def get_job_item(db: Session, item_id: int) -> TransparenciaCargaJobItem | None:
+    return db.query(TransparenciaCargaJobItem).filter(TransparenciaCargaJobItem.id == item_id).first()
+

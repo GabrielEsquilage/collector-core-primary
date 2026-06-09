@@ -24,20 +24,26 @@ async def run_startup_sync(app: FastAPI):
 
     if _is_enabled("IBGE_SYNC_ON_STARTUP", "true"):
         try:
+            logger.info("Starting IBGE sync...")
             results["ibge"] = await asyncio.to_thread(sync_localidades_with_new_session)
+            logger.info("IBGE sync finished successfully.")
         except Exception as exc:
             errors["ibge"] = str(exc)
             logger.exception("IBGE startup sync failed")
 
     if _is_enabled("TRANSPARENCIA_SYNC_ON_STARTUP", "true"):
         try:
+            logger.info("Starting Transparencia SIAFI sync...")
             results["transparencia_siafi"] = await collect_orgaos_siafi_with_new_session()
+            logger.info("Transparencia SIAFI sync finished successfully.")
         except Exception as exc:
             errors["transparencia_siafi"] = str(exc)
             logger.exception("Transparencia SIAFI startup sync failed")
 
         try:
+            logger.info("Starting Transparencia SIAPE sync...")
             results["transparencia_siape"] = await collect_orgaos_siape_with_new_session()
+            logger.info("Transparencia SIAPE sync finished successfully.")
         except Exception as exc:
             errors["transparencia_siape"] = str(exc)
             logger.exception("Transparencia SIAPE startup sync failed")
@@ -51,4 +57,6 @@ async def start_startup_sync(app: FastAPI):
     app.state.startup_sync_results = {}
     app.state.startup_sync_errors = {}
     app.state.startup_sync_finished = False
-    app.state.startup_sync_task = asyncio.create_task(run_startup_sync(app))
+    # Executa a carga de forma síncrona na inicialização do Uvicorn
+    # para garantir que os dados estejam no banco antes de aceitar requisições.
+    await run_startup_sync(app)

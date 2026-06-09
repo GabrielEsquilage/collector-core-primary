@@ -12,7 +12,7 @@ from app.services.transparencia.jobs.service import queue_job_run, run_job
 logger = logging.getLogger(__name__)
 
 WORKER_BATCH_SIZE = int(os.getenv("TRANSPARENCIA_WORKER_BATCH_SIZE", "8"))
-WORKER_INTERVAL_SECONDS = int(os.getenv("TRANSPARENCIA_WORKER_INTERVAL_SECONDS", "120"))
+WORKER_INTERVAL_SECONDS = int(os.getenv("TRANSPARENCIA_WORKER_INTERVAL_SECONDS", "90"))
 WORKER_IDLE_INTERVAL_SECONDS = int(os.getenv("TRANSPARENCIA_WORKER_IDLE_INTERVAL_SECONDS", "5"))
 
 
