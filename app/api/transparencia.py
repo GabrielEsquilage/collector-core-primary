@@ -232,7 +232,7 @@ async def collect_bolsa_familia_periodo(
     response_model=BolsaFamiliaMunicipioListResponse,
 )
 def get_bolsa_familia(
-    mes_ano: str | None = Query(default=None, alias="mesAno", min_length=6, max_length=6),
+    ano: int | None = Query(default=None, ge=2000, le=2100),
     codigo_ibge: str | None = Query(default=None, alias="codigoIbge", min_length=1),
     estado_sigla: str | None = Query(default=None, alias="estadoSigla", min_length=2, max_length=2),
     limit: int = Query(default=100, ge=1, le=1000),
@@ -242,7 +242,7 @@ def get_bolsa_familia(
     try:
         total, items = list_bolsa_familia_municipio(
             db,
-            mes_ano=mes_ano,
+            ano=ano,
             codigo_ibge=codigo_ibge,
             estado_sigla=estado_sigla,
             limit=limit,
@@ -301,7 +301,7 @@ async def collect_auxilio_brasil_periodo(
     response_model=AuxilioBrasilMunicipioListResponse,
 )
 def get_auxilio_brasil(
-    mes_ano: str | None = Query(default=None, alias="mesAno", min_length=6, max_length=6),
+    ano: int | None = Query(default=None, ge=2000, le=2100),
     codigo_ibge: str | None = Query(default=None, alias="codigoIbge", min_length=1),
     estado_sigla: str | None = Query(default=None, alias="estadoSigla", min_length=2, max_length=2),
     limit: int = Query(default=100, ge=1, le=1000),
@@ -311,7 +311,7 @@ def get_auxilio_brasil(
     try:
         total, items = list_auxilio_brasil_municipio(
             db,
-            mes_ano=mes_ano,
+            ano=ano,
             codigo_ibge=codigo_ibge,
             estado_sigla=estado_sigla,
             limit=limit,
@@ -370,7 +370,7 @@ async def collect_novo_bolsa_familia_periodo(
     response_model=NovoBolsaFamiliaMunicipioListResponse,
 )
 def get_novo_bolsa_familia(
-    mes_ano: str | None = Query(default=None, alias="mesAno", min_length=6, max_length=6),
+    ano: int | None = Query(default=None, ge=2000, le=2100),
     codigo_ibge: str | None = Query(default=None, alias="codigoIbge", min_length=1),
     estado_sigla: str | None = Query(default=None, alias="estadoSigla", min_length=2, max_length=2),
     limit: int = Query(default=100, ge=1, le=1000),
@@ -380,7 +380,7 @@ def get_novo_bolsa_familia(
     try:
         total, items = list_novo_bolsa_familia_municipio(
             db,
-            mes_ano=mes_ano,
+            ano=ano,
             codigo_ibge=codigo_ibge,
             estado_sigla=estado_sigla,
             limit=limit,

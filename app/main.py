@@ -11,6 +11,7 @@ from app.api.transparencia import router as transparencia_router
 from app.api.routes.ibge import router as ibge_router
 from app.database import Base, engine
 from app.services.startup_sync import start_startup_sync
+from app.services.transparencia.jobs.worker import start_jobs_worker, stop_jobs_worker
 
 logging.basicConfig(level=logging.INFO)
 
@@ -28,7 +29,9 @@ def init_db():
 async def lifespan(app: FastAPI):
     init_db()
     await start_startup_sync(app)
+    await start_jobs_worker(app)
     yield
+    await stop_jobs_worker(app)
     task = getattr(app.state, "startup_sync_task", None)
     if task is not None and not task.done():
         task.cancel()

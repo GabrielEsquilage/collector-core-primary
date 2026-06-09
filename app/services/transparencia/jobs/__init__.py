@@ -10,6 +10,10 @@ from app.services.transparencia.jobs.service import (
     seed_beneficio_jobs,
     seed_parana_beneficio_jobs,
 )
+from app.services.transparencia.jobs.worker import (
+    start_jobs_worker,
+    stop_jobs_worker,
+)
 
 __all__ = [
     "delete_job",
@@ -22,4 +26,7 @@ __all__ = [
     "run_job",
     "seed_beneficio_jobs",
     "seed_parana_beneficio_jobs",
+    "start_jobs_worker",
+    "stop_jobs_worker",
 ]
+

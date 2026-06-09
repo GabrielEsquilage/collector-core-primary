@@ -16,6 +16,20 @@ def _resolve_api_key() -> str:
         raise RuntimeError("PORTAL_TRANSPARENCIA_API_KEY environment variable not set")
 
     raw_value = raw_value.strip().strip('"').strip("'")
+    
+    # Try parsing as JSON if it looks like a JSON object
+    if raw_value.startswith("{") and raw_value.endswith("}"):
+        try:
+            import json
+            data = json.loads(raw_value)
+            if isinstance(data, dict):
+                if "value" in data:
+                    return str(data["value"]).strip()
+                if "key" in data and data["key"] != "chave-api-dados":
+                    return str(data["key"]).strip()
+        except json.JSONDecodeError:
+            pass
+
     if raw_value.lower().startswith("chave-api-dados:"):
         return raw_value.split(":", 1)[1].strip()
     return raw_value

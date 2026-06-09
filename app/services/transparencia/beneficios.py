@@ -428,7 +428,7 @@ def _list_beneficio_municipio(
     db: Session,
     *,
     spec: BeneficioSpec,
-    mes_ano: str | None = None,
+    ano: int | None = None,
     codigo_ibge: str | None = None,
     estado_sigla: str | None = None,
     limit: int = 100,
@@ -437,8 +437,9 @@ def _list_beneficio_municipio(
     model = spec.model
     query = db.query(model).filter(model.tipo_beneficio == spec.tipo_beneficio)
 
-    if mes_ano is not None:
-        query = query.filter(model.data_referencia == _parse_mes_ano(mes_ano))
+    if ano is not None:
+        from sqlalchemy import extract
+        query = query.filter(extract('year', model.data_referencia) == ano)
 
     if codigo_ibge is not None:
         query = query.filter(model.municipio_codigo_ibge == str(codigo_ibge))
@@ -535,7 +536,7 @@ async def collect_bolsa_familia_municipio_ano(
 
 def list_auxilio_brasil_municipio(
     db: Session,
-    mes_ano: str | None = None,
+    ano: int | None = None,
     codigo_ibge: str | None = None,
     estado_sigla: str | None = None,
     limit: int = 100,
@@ -544,7 +545,7 @@ def list_auxilio_brasil_municipio(
     return _list_beneficio_municipio(
         db,
         spec=_get_beneficio_spec("auxilio_brasil"),
-        mes_ano=mes_ano,
+        ano=ano,
         codigo_ibge=codigo_ibge,
         estado_sigla=estado_sigla,
         limit=limit,
@@ -554,7 +555,7 @@ def list_auxilio_brasil_municipio(
 
 def list_bolsa_familia_municipio(
     db: Session,
-    mes_ano: str | None = None,
+    ano: int | None = None,
     codigo_ibge: str | None = None,
     estado_sigla: str | None = None,
     limit: int = 100,
@@ -563,7 +564,7 @@ def list_bolsa_familia_municipio(
     return _list_beneficio_municipio(
         db,
         spec=_get_beneficio_spec("bolsa_familia"),
-        mes_ano=mes_ano,
+        ano=ano,
         codigo_ibge=codigo_ibge,
         estado_sigla=estado_sigla,
         limit=limit,
@@ -611,7 +612,7 @@ async def collect_novo_bolsa_familia_municipio_ano(
 
 def list_novo_bolsa_familia_municipio(
     db: Session,
-    mes_ano: str | None = None,
+    ano: int | None = None,
     codigo_ibge: str | None = None,
     estado_sigla: str | None = None,
     limit: int = 100,
@@ -620,7 +621,7 @@ def list_novo_bolsa_familia_municipio(
     return _list_beneficio_municipio(
         db,
         spec=_get_beneficio_spec("novo_bolsa_familia"),
-        mes_ano=mes_ano,
+        ano=ano,
         codigo_ibge=codigo_ibge,
         estado_sigla=estado_sigla,
         limit=limit,
