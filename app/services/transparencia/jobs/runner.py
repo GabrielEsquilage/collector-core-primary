@@ -1,9 +1,9 @@
 from collections.abc import Awaitable, Callable, Mapping
 from typing import TypedDict
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import SessionLocal
+from app.database import AsyncSessionLocal
 from app.models import TransparenciaCargaJob, TransparenciaCargaJobItem
 from app.services.transparencia.beneficios import (
     collect_auxilio_brasil_municipio,
@@ -21,6 +21,14 @@ from app.services.transparencia.jobs.rate_limit import (
     get_shared_portal_request_limiter,
 )
 from app.services.transparencia.jobs.repository import (
+    utcnow,
+)
+from app.services.transparencia.jobs.repository_async import (
+    async_claim_next_job_item,
+    async_get_job,
+    async_mark_job_item_failed,
+    async_mark_job_item_success,
+    async_refresh_job_counts,
     claim_next_job_item,
     get_job,
     mark_job_item_failed,
@@ -62,7 +70,7 @@ def get_item_executor(tipo_beneficio: str) -> BeneficioCollector:
 
 
 async def execute_job_item(
-    db: Session,
+    db: AsyncSession,
     item: JobItemContext,
     limiter: PortalRequestRateLimiter,
 ) -> JobItemExecutionMetrics:
@@ -91,86 +99,86 @@ def _item_context_from_model(item: TransparenciaCargaJobItem) -> JobItemContext:
     }
 
 
-def _mark_job_running(job_id: int) -> TransparenciaCargaJob | None:
-    with SessionLocal() as db:
-        job = get_job(db, job_id)
+async def _mark_job_running(job_id: int) -> TransparenciaCargaJob | None:
+    async with AsyncSessionLocal() as db:
+        job = await async_get_job(db, job_id)
         if job is None:
             return None
 
         job.status = JOB_STATUS_RUNNING
         job.started_at = job.started_at or utcnow()
         job.finished_at = None
-        db.commit()
-        db.refresh(job)
-        return refresh_job_counts(db, job)
+        await db.commit()
+        await db.refresh(job)
+        return await async_refresh_job_counts(db, job)
 
 
-def _claim_next_job_item_context(
+async def _claim_next_job_item_context(
     job_id: int,
     *,
     max_attempts: int,
 ) -> JobItemContext | None:
-    with SessionLocal() as db:
-        item = claim_next_job_item(db, job_id=job_id, max_attempts=max_attempts)
+    async with AsyncSessionLocal() as db:
+        item = await async_claim_next_job_item(db, job_id=job_id, max_attempts=max_attempts)
         if item is None:
             return None
         return _item_context_from_model(item)
 
 
-def _refresh_job_counts(job_id: int) -> TransparenciaCargaJob | None:
-    with SessionLocal() as db:
-        job = get_job(db, job_id)
+async def _refresh_job_counts(job_id: int) -> TransparenciaCargaJob | None:
+    async with AsyncSessionLocal() as db:
+        job = await async_get_job(db, job_id)
         if job is None:
             return None
-        return refresh_job_counts(db, job)
+        return await async_refresh_job_counts(db, job)
 
 
-def _mark_job_item_success_and_refresh(
+async def _mark_job_item_success_and_refresh(
     job_id: int,
     item_id: int,
     metrics: JobItemExecutionMetrics,
 ) -> TransparenciaCargaJob | None:
-    with SessionLocal() as db:
-        mark_job_item_success(db, item_id, metrics)
-        job = get_job(db, job_id)
+    async with AsyncSessionLocal() as db:
+        await async_mark_job_item_success(db, item_id, metrics)
+        job = await async_get_job(db, job_id)
         if job is None:
             return None
-        return refresh_job_counts(db, job)
+        return await async_refresh_job_counts(db, job)
 
 
-def _mark_job_item_failed_and_refresh(
+async def _mark_job_item_failed_and_refresh(
     job_id: int,
     item_id: int,
     error_message: str,
 ) -> TransparenciaCargaJob | None:
-    with SessionLocal() as db:
-        mark_job_item_failed(db, item_id, error_message)
-        job = get_job(db, job_id)
+    async with AsyncSessionLocal() as db:
+        await async_mark_job_item_failed(db, item_id, error_message)
+        job = await async_get_job(db, job_id)
         if job is None:
             return None
-        return refresh_job_counts(db, job)
+        return await async_refresh_job_counts(db, job)
 
 
-def _finalize_job(job_id: int) -> TransparenciaCargaJob | None:
-    with SessionLocal() as db:
-        job = get_job(db, job_id)
+async def _finalize_job(job_id: int) -> TransparenciaCargaJob | None:
+    async with AsyncSessionLocal() as db:
+        job = await async_get_job(db, job_id)
         if job is None:
             return None
-        return finalize_job(db, job)
+        return await async_finalize_job(db, job)
 
 
-def _mark_job_failed(job_id: int) -> None:
-    with SessionLocal() as db:
-        job = get_job(db, job_id)
+async def _mark_job_failed(job_id: int) -> None:
+    async with AsyncSessionLocal() as db:
+        job = await async_get_job(db, job_id)
         if job is None:
             return
         job.status = JOB_STATUS_FAILED
         job.finished_at = utcnow()
-        db.commit()
+        await db.commit()
 
 
-def finalize_job(db: Session, job: TransparenciaCargaJob) -> TransparenciaCargaJob:
-    job = refresh_job_counts(db, job)
+async def async_finalize_job(db: AsyncSession, job: TransparenciaCargaJob) -> TransparenciaCargaJob:
+    job = await async_refresh_job_counts(db, job)
 
     if job.pending_items > 0 or job.running_items > 0:
         job.status = JOB_STATUS_FAILED
@@ -183,35 +191,35 @@ def finalize_job(db: Session, job: TransparenciaCargaJob) -> TransparenciaCargaJ
         job.status = JOB_STATUS_COMPLETED
 
     job.finished_at = utcnow()
-    db.commit()
-    db.refresh(job)
-    return refresh_job_counts(db, job)
+    await db.commit()
+    await db.refresh(job)
+    return await async_refresh_job_counts(db, job)
 
 
 async def run_job(job_id: int, *, max_attempts: int) -> None:
     try:
-        job = _mark_job_running(job_id)
+        job = await _mark_job_running(job_id)
         if job is None:
             return
 
         limiter = get_shared_portal_request_limiter()
 
         while True:
-            item_context = _claim_next_job_item_context(job.id, max_attempts=max_attempts)
+            item_context = await _claim_next_job_item_context(job.id, max_attempts=max_attempts)
             if item_context is None:
                 break
 
             try:
-                with SessionLocal() as db:
+                async with AsyncSessionLocal() as db:
                     metrics = await execute_job_item(db, item_context, limiter)
             except Exception as exc:
-                job = _mark_job_item_failed_and_refresh(
+                job = await _mark_job_item_failed_and_refresh(
                     job.id,
                     item_context["item_id"],
                     str(exc),
                 )
             else:
-                job = _mark_job_item_success_and_refresh(
+                job = await _mark_job_item_success_and_refresh(
                     job.id,
                     item_context["item_id"],
                     metrics,
@@ -219,7 +227,7 @@ async def run_job(job_id: int, *, max_attempts: int) -> None:
             if job is None:
                 return
 
-        _finalize_job(job.id)
+        await _finalize_job(job.id)
     except Exception:
-        _mark_job_failed(job_id)
+        await _mark_job_failed(job_id)
         raise

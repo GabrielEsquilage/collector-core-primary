@@ -27,21 +27,26 @@ async def run_worker_loop():
         executed_any = False
         try:
             job_ids = []
-            with SessionLocal() as db:
-                pending_jobs = (
-                    db.query(TransparenciaCargaJob)
-                    .filter(TransparenciaCargaJob.status == JOB_STATUS_PENDING)
-                    .order_by(TransparenciaCargaJob.id.asc())
-                    .limit(WORKER_BATCH_SIZE)
-                    .all()
-                )
+            def _fetch_and_queue():
+                local_ids = []
+                with SessionLocal() as db:
+                    pending_jobs = (
+                        db.query(TransparenciaCargaJob)
+                        .filter(TransparenciaCargaJob.status == JOB_STATUS_PENDING)
+                        .order_by(TransparenciaCargaJob.id.asc())
+                        .limit(WORKER_BATCH_SIZE)
+                        .all()
+                    )
 
-                for job in pending_jobs:
-                    try:
-                        queue_job_run(db, job.id)
-                        job_ids.append(job.id)
-                    except Exception as exc:
-                        logger.error(f"Failed to queue job {job.id}: {exc}")
+                    for job in pending_jobs:
+                        try:
+                            queue_job_run(db, job.id)
+                            local_ids.append(job.id)
+                        except Exception as exc:
+                            logger.error(f"Failed to queue job {job.id}: {exc}")
+                return local_ids
+
+            job_ids = await asyncio.to_thread(_fetch_and_queue)
 
             if job_ids:
                 executed_any = True
