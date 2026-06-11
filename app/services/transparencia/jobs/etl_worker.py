@@ -3,7 +3,7 @@ import logging
 import os
 from fastapi import FastAPI
 
-from etl_beneficios import run_etl
+from app.services.transparencia.etl import run_etl
 
 logger = logging.getLogger(__name__)
 
