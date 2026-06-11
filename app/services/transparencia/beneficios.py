@@ -232,70 +232,49 @@ def _logical_key(row: dict[str, Any]) -> tuple[int, str, date, str]:
     )
 
 
-async def _load_existing_beneficio_rows(
-    db: AsyncSession,
+
+
+
+
+
+
+
+
+
+import json
+import pyarrow as pa
+import pyarrow.parquet as pq
+from pathlib import Path
+
+async def _save_beneficio_to_parquet(
     spec: BeneficioSpec,
-    *,
-    data_referencia: date,
-    codigo_ibge: str,
-) -> dict[tuple[int, str, date, str], Any]:
-    query = select(spec.model).filter(
-        spec.model.tipo_beneficio == spec.tipo_beneficio,
-        spec.model.data_referencia == data_referencia,
-        spec.model.municipio_codigo_ibge == str(codigo_ibge),
-    )
-    result = await db.execute(query)
-    return {_logical_key(_row_to_logical_dict(item)): item for item in result.scalars().all()}
-
-
-def _row_to_logical_dict(item: Any) -> dict[str, Any]:
-    return {
-        "id_externo": item.id_externo,
-        "tipo_beneficio": item.tipo_beneficio,
-        "data_referencia": item.data_referencia,
-        "municipio_codigo_ibge": item.municipio_codigo_ibge,
-    }
-
-
-def _apply_beneficio_updates(current: Any, row: dict[str, Any]) -> bool:
-    changed = False
-    for field in BENEFICIO_MUTABLE_FIELDS:
-        value = row[field]
-        if getattr(current, field) != value:
-            setattr(current, field, value)
-            changed = True
-    return changed
-
-
-async def _upsert_beneficio_rows(
-    db: AsyncSession,
-    spec: BeneficioSpec,
-    *,
     records: list[dict[str, Any]],
-    existing_by_key: dict[tuple[int, str, date, str], Any],
-) -> tuple[int, int]:
-    inserted = 0
-    updated = 0
+    mes_ano: str,
+    codigo_ibge: str,
+) -> int:
+    if not records:
+        return 0
 
+    ano = mes_ano[:4]
+    mes = mes_ano[4:]
+    
+    DATA_LAKE_PATH = Path("app/data/parquet")
+    partition_dir = DATA_LAKE_PATH / spec.tipo_beneficio / f"ano={ano}" / f"mes={mes}"
+    partition_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = partition_dir / f"{codigo_ibge}.parquet"
+    
+    normalized_records = []
     for item in records:
         row = _normalize_beneficio_record(item, spec=spec)
-        key = _logical_key(row)
-        current = existing_by_key.get(key)
-
-        if current is None:
-            current = spec.model(**row, collected_at=datetime.utcnow())
-            db.add(current)
-            existing_by_key[key] = current
-            inserted += 1
-            continue
-
-        if _apply_beneficio_updates(current, row):
-            current.collected_at = datetime.utcnow()
-            updated += 1
-
-    await db.flush()
-    return inserted, updated
-
+        row["data_referencia"] = row["data_referencia"].isoformat()
+        row["valor"] = float(row["valor"])
+        row["payload_json"] = json.dumps(row["payload_json"])
+        normalized_records.append(row)
+    
+    table = pa.Table.from_pylist(normalized_records)
+    pq.write_table(table, file_path)
+    return len(normalized_records)
 
 def _build_mensal_summary(
     spec: BeneficioSpec,
@@ -323,39 +302,23 @@ async def _collect_beneficio_municipio(
     pagina_inicial: int = 1,
     before_request=None,
 ):
-    data_referencia = _parse_mes_ano(mes_ano)
     summary = _build_mensal_summary(spec, mes_ano=mes_ano, codigo_ibge=codigo_ibge)
-    existing_by_key = await _load_existing_beneficio_rows(
-        db,
-        spec,
-        data_referencia=data_referencia,
-        codigo_ibge=codigo_ibge,
-    )
+    
+    all_records = []
+    async with TransparenciaClient(before_request=before_request) as client:
+        async for _, records in client.iter_pages(
+            spec.resource,
+            start_page=pagina_inicial,
+            mesAno=mes_ano,
+            codigoIbge=str(codigo_ibge),
+        ):
+            summary["pages_collected"] += 1
+            summary["records_received"] += len(records)
+            all_records.extend(records)
 
-    try:
-        async with TransparenciaClient(before_request=before_request) as client:
-            async for _, records in client.iter_pages(
-                spec.resource,
-                start_page=pagina_inicial,
-                mesAno=mes_ano,
-                codigoIbge=str(codigo_ibge),
-            ):
-                summary["pages_collected"] += 1
-                summary["records_received"] += len(records)
-
-                inserted, updated = await _upsert_beneficio_rows(
-                    db,
-                    spec,
-                    records=records,
-                    existing_by_key=existing_by_key,
-                )
-                summary["inserted"] += inserted
-                summary["updated"] += updated
-
-        await db.commit()
-    except Exception:
-        await db.rollback()
-        raise
+    if all_records:
+        inserted = await _save_beneficio_to_parquet(spec, all_records, mes_ano, codigo_ibge)
+        summary["inserted"] = inserted
 
     return summary
 
