@@ -1,5 +1,6 @@
 import os
 import sys
+import shutil
 from pathlib import Path
 from datetime import datetime
 
@@ -29,31 +30,33 @@ def get_db_connection():
 
 def run_etl():
     parquet_path = Path("app/data/parquet")
+    finished_path = Path("app/data/parquet_finished")
+    
     if not parquet_path.exists():
         print("Nenhum arquivo Parquet encontrado. ETL abortado.")
         return
 
-    print("Iniciando varredura dos arquivos Parquet...")
+    # Mapeia todos os arquivos .parquet disponíveis na Landing Zone
+    files_to_process = list(parquet_path.glob("*/*/*/*.parquet"))
+    
+    if not files_to_process:
+        print("Nenhum dado novo para processar.")
+        return
+
+    print(f"Iniciando leitura de {len(files_to_process)} arquivos Parquet...")
     
     try:
-        # Usa hive_partitioning para descobrir as colunas ano e mes dinamicamente
-        df = pl.read_parquet(
-            "app/data/parquet/*/*/*/*.parquet",
-            hive_partitioning=False  # Nao precisamos pois podemos extrair da estrutura da pasta se for preciso, ou confiar no df
-        )
+        df = pl.read_parquet(files_to_process)
     except Exception as e:
-        print(f"Erro ao ler parquet: {e}")
+        print(f"Erro ao ler parquets: {e}")
         return
         
     print(f"Registros encontrados no Data Lake: {len(df)}")
     
     if len(df) == 0:
-        print("Nenhum dado para processar.")
+        print("Nenhum dado válido extraído.")
         return
 
-    # O Parquet gerado ja contem:
-    # id_externo, tipo_beneficio, data_referencia, municipio_codigo_ibge, valor, quantidade_beneficiados, payload_json
-    # Queremos descartar id_externo e payload_json
     df_clean = df.select([
         "tipo_beneficio",
         "data_referencia",
@@ -62,9 +65,6 @@ def run_etl():
         "quantidade_beneficiados"
     ])
     
-    # Remove duplicatas lógicas (mesmo município, mesmo mês e mesmo tipo_beneficio) pegando o mais recente
-    # Mas como já limpamos e cada arquivo parquet tem 1 linha, não deve ter.
-    # Mas é uma boa prática
     df_clean = df_clean.unique(
         subset=["tipo_beneficio", "data_referencia", "municipio_codigo_ibge"],
         keep="last"
@@ -78,7 +78,6 @@ def run_etl():
     cur = conn.cursor()
     
     try:
-        # Cria a tabela caso não exista (via Alembic seria o ideal, mas garantimos aqui)
         cur.execute("""
             CREATE SCHEMA IF NOT EXISTS datacrypt;
             CREATE TABLE IF NOT EXISTS datacrypt.fato_repasse_municipio (
@@ -119,6 +118,15 @@ def run_etl():
         
         conn.commit()
         print("Carga Gold (PostgreSQL) concluída com sucesso!")
+        
+        print(f"Movendo {len(files_to_process)} arquivos para a Processed Zone...")
+        for file in files_to_process:
+            rel_path = file.relative_to(parquet_path)
+            dest_file = finished_path / rel_path
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(file), str(dest_file))
+            
+        print("Arquivos arquivados com sucesso!")
         
     except Exception as e:
         conn.rollback()
