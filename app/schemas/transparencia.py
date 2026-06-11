@@ -177,14 +177,12 @@ class BeneficioMunicipioResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    id_externo: int
     tipo_beneficio: str
     data_referencia: date
     municipio_codigo_ibge: str
     valor: Decimal
     quantidade_beneficiados: int
-    payload_json: dict
-    collected_at: datetime
+    created_at: datetime
 
 
 class BeneficioMunicipioListResponse(BaseModel):
