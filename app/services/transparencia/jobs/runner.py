@@ -29,11 +29,6 @@ from app.services.transparencia.jobs.repository_async import (
     async_mark_job_item_failed,
     async_mark_job_item_success,
     async_refresh_job_counts,
-    claim_next_job_item,
-    get_job,
-    mark_job_item_failed,
-    mark_job_item_success,
-    refresh_job_counts,
     utcnow,
 )
 
