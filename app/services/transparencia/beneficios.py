@@ -12,9 +12,7 @@ from sqlalchemy.future import select
 from app.models import (
     Estado,
     Municipio,
-    TransparenciaAuxilioBrasilMunicipio,
-    TransparenciaBolsaFamiliaMunicipio,
-    TransparenciaNovoBolsaFamiliaMunicipio,
+    FatoRepasseMunicipio,
 )
 from app.services.transparencia.client import TransparenciaClient
 
@@ -51,7 +49,6 @@ class BeneficioSpec:
     tipo_beneficio: str
     display_name: str
     resource: str
-    model: Any
     periodo_mensal: PeriodoMensalSpec
     periodo_anual: PeriodoAnualSpec
 
@@ -100,7 +97,6 @@ BENEFICIO_SPECS = {
         tipo_beneficio="auxilio_brasil",
         display_name="Auxilio Brasil",
         resource="auxilio-brasil-por-municipio",
-        model=TransparenciaAuxilioBrasilMunicipio,
         periodo_mensal=PeriodoMensalSpec(
             start=AUXILIO_BRASIL_START,
             end=AUXILIO_BRASIL_END,
@@ -117,7 +113,6 @@ BENEFICIO_SPECS = {
         tipo_beneficio="bolsa_familia",
         display_name="Bolsa Familia",
         resource="bolsa-familia-por-municipio",
-        model=TransparenciaBolsaFamiliaMunicipio,
         periodo_mensal=PeriodoMensalSpec(
             start=BOLSA_FAMILIA_START,
             end=BOLSA_FAMILIA_END,
@@ -134,7 +129,6 @@ BENEFICIO_SPECS = {
         tipo_beneficio="novo_bolsa_familia",
         display_name="Novo Bolsa Familia",
         resource="novo-bolsa-familia-por-municipio",
-        model=TransparenciaNovoBolsaFamiliaMunicipio,
         periodo_mensal=PeriodoMensalSpec(
             start=NOVO_BOLSA_FAMILIA_START,
             end=None,
@@ -400,7 +394,7 @@ def _list_beneficio_municipio(
     limit: int = 100,
     offset: int = 0,
 ):
-    model = spec.model
+    model = FatoRepasseMunicipio
     query = db.query(model).filter(model.tipo_beneficio == spec.tipo_beneficio)
 
     if ano is not None:
@@ -414,8 +408,9 @@ def _list_beneficio_municipio(
         query = _apply_estado_sigla_filter(query, model, estado_sigla)
 
     total = query.count()
+    # FatoRepasseMunicipio does not have id_externo anymore, sort by id or data_referencia
     items = (
-        query.order_by(model.data_referencia.desc(), model.id_externo.asc())
+        query.order_by(model.data_referencia.desc(), model.id.asc())
         .offset(offset)
         .limit(limit)
         .all()
