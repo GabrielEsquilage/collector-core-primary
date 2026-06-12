@@ -35,3 +35,15 @@ class MunicipioListResponse(BaseModel):
     limit: int
     offset: int
     items: list[MunicipioResponse]
+
+class DemografiaResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    codigo_ibge_municipio: str
+    ano: int
+    variavel_codigo: str
+    valor_estatistico: float
+
+class DemografiaListResponse(BaseModel):
+    total: int
+    items: list[DemografiaResponse]
