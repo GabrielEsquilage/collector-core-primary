@@ -127,3 +127,53 @@ Analisando a estrutura e a implementação do diretório `app/services/transpare
 * **Refatoração Async:** Implementar suporte oficial ao driver `asyncpg` no banco de dados e modificar os repositórios do fluxo de jobs para retornarem chamadas assíncronas reais.
 * **Agrupamento de Transações:** Revisar injeção de sessão nas rotinas que abrem excessivamente a conexão.
 
+---
+
+
+Objetivo da Refatoração: Otimização de I/O entre Polars e PostgreSQL
+
+Esta documentação técnica define a alteração necessária no pipeline ELT (arquivo elr.py) para eliminar um pequeno gargalo de memória na ponte entre o Polars (Rust) e o psycopg2 (Python).
+1. O Problema
+
+Atualmente, o processo de serialização dos dados extraídos utiliza o método .to_dicts(). Isso força o Polars a converter os dados ultrarrápidos dele em Dicionários Python (que são pesados), e depois você gasta mais CPU criando uma lista de Tuplas.
+2. A Solução
+
+A otimização consiste em utilizar um recurso nativo mais eficiente. O Polars possui um método nativo chamado .rows() que já extrai os dados diretamente como uma lista de tuplas puras, na exata ordem das colunas do DataFrame. Você pode substituir toda a conversão de to_dicts e a List Comprehension por uma única linha.
+3. Guia de Implementação no elr.py
+
+A. Remover o bloco de código abaixo:
+Busque no seu script o trecho onde o DataFrame é convertido e iterado, e exclua estas linhas:
+Python
+
+    records = df_clean.to_dicts()
+    
+    print(f"Registros únicos pós-limpeza: {len(records)}")
+    
+    # ... código de conexão do banco ...
+        
+        values = [
+            (
+                r["tipo_beneficio"],
+                r["data_referencia"],
+                r["municipio_codigo_ibge"],
+                r["valor"],
+                r["quantidade_beneficiados"]
+            )
+            for r in records
+        ]
+
+B. Substituir pelo método otimizado:
+No lugar da conversão em dicionário e da List Comprehension, insira a extração direta das tuplas usando .rows():
+Python
+
+    # Extrai os dados em formato nativo de tuplas
+    values = df_clean.rows()
+    
+    print(f"Registros únicos pós-limpeza prontos para inserção: {len(values)}")
+    
+    # ... código de conexão do banco ...
+    # O execute_values já receberá a variável 'values' normalmente
+
+4. Checklist de Validação
+
+    Ordem das Colunas: Verifique se o df.select([ ... ]) que cria o df_clean está exatamente na mesma ordem dos campos do INSERT INTO. O método .rows() confia que a ordem das colunas do DataFrame corresponde aos valores esperados pelo banco de dados.

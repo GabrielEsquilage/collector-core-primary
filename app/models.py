@@ -109,77 +109,25 @@ class TransparenciaOrgaoSiape(Base):
     )
 
 
-class TransparenciaAuxilioBrasilMunicipio(Base):
-    __tablename__ = "transparencia_auxilio_brasil_municipio"
+class FatoRepasseMunicipio(Base):
+    __tablename__ = "fato_repasse_municipio"
     __table_args__ = (
         UniqueConstraint(
-            "id_externo",
             "tipo_beneficio",
             "data_referencia",
             "municipio_codigo_ibge",
-            name="uq_transparencia_auxilio_brasil_municipio_logical",
+            name="uq_fato_repasse_municipio_logical",
         ),
         {"schema": "datacrypt"},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    id_externo: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     tipo_beneficio: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     data_referencia: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     municipio_codigo_ibge: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
     valor: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     quantidade_beneficiados: Mapped[int] = mapped_column(Integer, nullable=False)
-    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    collected_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-
-
-class TransparenciaBolsaFamiliaMunicipio(Base):
-    __tablename__ = "transparencia_bolsa_familia_municipio"
-    __table_args__ = (
-        UniqueConstraint(
-            "id_externo",
-            "tipo_beneficio",
-            "data_referencia",
-            "municipio_codigo_ibge",
-            name="uq_transparencia_bolsa_familia_municipio_logical",
-        ),
-        {"schema": "datacrypt"},
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    id_externo: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    tipo_beneficio: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    data_referencia: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    municipio_codigo_ibge: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
-    valor: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    quantidade_beneficiados: Mapped[int] = mapped_column(Integer, nullable=False)
-    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    collected_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-
-
-class TransparenciaNovoBolsaFamiliaMunicipio(Base):
-    __tablename__ = "transparencia_novo_bolsa_familia_municipio"
-    __table_args__ = (
-        UniqueConstraint(
-            "id_externo",
-            "tipo_beneficio",
-            "data_referencia",
-            "municipio_codigo_ibge",
-            name="uq_transparencia_novo_bolsa_familia_municipio_logical",
-        ),
-        {"schema": "datacrypt"},
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    id_externo: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    tipo_beneficio: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    data_referencia: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    municipio_codigo_ibge: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
-    valor: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    quantidade_beneficiados: Mapped[int] = mapped_column(Integer, nullable=False)
-    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    collected_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 
 class TransparenciaCargaJob(Base):
     __tablename__ = "transparencia_carga_job"

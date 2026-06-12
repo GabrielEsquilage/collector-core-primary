@@ -11,7 +11,11 @@ load_dotenv()
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 if SQLALCHEMY_DATABASE_URL is None:
-    raise RuntimeError("DATABASE_URL environment variable not set")
+    db_user = os.getenv("DB_USER", "postgres")
+    db_pass = os.getenv("DB_PASS", "suasenha")
+    db_port = os.getenv("DB_PORT", "5433")
+    db_name = os.getenv("DB_NAME", "datacrypt_db")
+    SQLALCHEMY_DATABASE_URL = f"postgresql://{db_user}:{db_pass}@localhost:{db_port}/{db_name}"
 
 ASYNC_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 

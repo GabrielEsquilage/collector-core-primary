@@ -12,6 +12,7 @@ from app.api.routes.ibge import router as ibge_router
 from app.database import Base, engine
 from app.services.startup_sync import start_startup_sync
 from app.services.transparencia.jobs.worker import start_jobs_worker, stop_jobs_worker
+from app.services.transparencia.jobs.etl_worker import start_etl_worker, stop_etl_worker
 
 logging.basicConfig(level=logging.INFO)
 
@@ -30,7 +31,9 @@ async def lifespan(app: FastAPI):
     init_db()
     await start_startup_sync(app)
     await start_jobs_worker(app)
+    await start_etl_worker(app)
     yield
+    await stop_etl_worker(app)
     await stop_jobs_worker(app)
 
 

@@ -6,4 +6,4 @@ __pycache__/
 *.tsbuildinfo
 *.log
 *.md
-
+app/data/
