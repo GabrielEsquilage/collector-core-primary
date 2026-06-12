@@ -6,6 +6,8 @@ from typing import Any
 
 from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from app.models import (
     Estado,
@@ -230,19 +232,20 @@ def _logical_key(row: dict[str, Any]) -> tuple[int, str, date, str]:
     )
 
 
-def _load_existing_beneficio_rows(
-    db: Session,
+async def _load_existing_beneficio_rows(
+    db: AsyncSession,
     spec: BeneficioSpec,
     *,
     data_referencia: date,
     codigo_ibge: str,
 ) -> dict[tuple[int, str, date, str], Any]:
-    query = db.query(spec.model).filter(
+    query = select(spec.model).filter(
         spec.model.tipo_beneficio == spec.tipo_beneficio,
         spec.model.data_referencia == data_referencia,
         spec.model.municipio_codigo_ibge == str(codigo_ibge),
     )
-    return {_logical_key(_row_to_logical_dict(item)): item for item in query.all()}
+    result = await db.execute(query)
+    return {_logical_key(_row_to_logical_dict(item)): item for item in result.scalars().all()}
 
 
 def _row_to_logical_dict(item: Any) -> dict[str, Any]:
@@ -264,8 +267,8 @@ def _apply_beneficio_updates(current: Any, row: dict[str, Any]) -> bool:
     return changed
 
 
-def _upsert_beneficio_rows(
-    db: Session,
+async def _upsert_beneficio_rows(
+    db: AsyncSession,
     spec: BeneficioSpec,
     *,
     records: list[dict[str, Any]],
@@ -290,7 +293,7 @@ def _upsert_beneficio_rows(
             current.collected_at = datetime.utcnow()
             updated += 1
 
-    db.flush()
+    await db.flush()
     return inserted, updated
 
 
@@ -312,7 +315,7 @@ def _build_mensal_summary(
 
 
 async def _collect_beneficio_municipio(
-    db: Session,
+    db: AsyncSession,
     *,
     spec: BeneficioSpec,
     mes_ano: str,
@@ -322,7 +325,7 @@ async def _collect_beneficio_municipio(
 ):
     data_referencia = _parse_mes_ano(mes_ano)
     summary = _build_mensal_summary(spec, mes_ano=mes_ano, codigo_ibge=codigo_ibge)
-    existing_by_key = _load_existing_beneficio_rows(
+    existing_by_key = await _load_existing_beneficio_rows(
         db,
         spec,
         data_referencia=data_referencia,
@@ -340,7 +343,7 @@ async def _collect_beneficio_municipio(
                 summary["pages_collected"] += 1
                 summary["records_received"] += len(records)
 
-                inserted, updated = _upsert_beneficio_rows(
+                inserted, updated = await _upsert_beneficio_rows(
                     db,
                     spec,
                     records=records,
@@ -349,9 +352,9 @@ async def _collect_beneficio_municipio(
                 summary["inserted"] += inserted
                 summary["updated"] += updated
 
-        db.commit()
+        await db.commit()
     except Exception:
-        db.rollback()
+        await db.rollback()
         raise
 
     return summary
@@ -363,7 +366,7 @@ def _iter_mes_ano_for_year(ano: int):
 
 
 async def _collect_beneficio_municipio_ano(
-    db: Session,
+    db: AsyncSession,
     *,
     spec: BeneficioSpec,
     ano: int,
@@ -459,7 +462,7 @@ def _list_beneficio_municipio(
 
 
 async def collect_auxilio_brasil_municipio(
-    db: Session,
+    db: AsyncSession,
     mes_ano: str,
     codigo_ibge: str,
     pagina_inicial: int = 1,
@@ -478,7 +481,7 @@ async def collect_auxilio_brasil_municipio(
 
 
 async def collect_bolsa_familia_municipio(
-    db: Session,
+    db: AsyncSession,
     mes_ano: str,
     codigo_ibge: str,
     pagina_inicial: int = 1,
@@ -497,7 +500,7 @@ async def collect_bolsa_familia_municipio(
 
 
 async def collect_auxilio_brasil_municipio_ano(
-    db: Session,
+    db: AsyncSession,
     ano: int,
     codigo_ibge: str,
     pagina_inicial: int = 1,
@@ -516,7 +519,7 @@ async def collect_auxilio_brasil_municipio_ano(
 
 
 async def collect_bolsa_familia_municipio_ano(
-    db: Session,
+    db: AsyncSession,
     ano: int,
     codigo_ibge: str,
     pagina_inicial: int = 1,
@@ -573,7 +576,7 @@ def list_bolsa_familia_municipio(
 
 
 async def collect_novo_bolsa_familia_municipio(
-    db: Session,
+    db: AsyncSession,
     mes_ano: str,
     codigo_ibge: str,
     pagina_inicial: int = 1,
@@ -592,7 +595,7 @@ async def collect_novo_bolsa_familia_municipio(
 
 
 async def collect_novo_bolsa_familia_municipio_ano(
-    db: Session,
+    db: AsyncSession,
     ano: int,
     codigo_ibge: str,
     pagina_inicial: int = 1,

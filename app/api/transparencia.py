@@ -1,7 +1,8 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, get_async_db
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.transparencia import (
     AuxilioBrasilCollectRequest,
     AuxilioBrasilCollectPeriodoRequest,
@@ -195,7 +196,7 @@ def delete_job_by_id(
 )
 async def collect_bolsa_familia(
     payload: BolsaFamiliaCollectRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     try:
         return await collect_bolsa_familia_municipio(
@@ -214,7 +215,7 @@ async def collect_bolsa_familia(
 )
 async def collect_bolsa_familia_periodo(
     payload: BolsaFamiliaCollectPeriodoRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     try:
         return await collect_bolsa_familia_municipio_ano(
@@ -264,7 +265,7 @@ def get_bolsa_familia(
 )
 async def collect_auxilio_brasil(
     payload: AuxilioBrasilCollectRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     try:
         return await collect_auxilio_brasil_municipio(
@@ -283,7 +284,7 @@ async def collect_auxilio_brasil(
 )
 async def collect_auxilio_brasil_periodo(
     payload: AuxilioBrasilCollectPeriodoRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     try:
         return await collect_auxilio_brasil_municipio_ano(
@@ -333,7 +334,7 @@ def get_auxilio_brasil(
 )
 async def collect_novo_bolsa_familia(
     payload: NovoBolsaFamiliaCollectRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     try:
         return await collect_novo_bolsa_familia_municipio(
@@ -352,7 +353,7 @@ async def collect_novo_bolsa_familia(
 )
 async def collect_novo_bolsa_familia_periodo(
     payload: NovoBolsaFamiliaCollectPeriodoRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     try:
         return await collect_novo_bolsa_familia_municipio_ano(
@@ -399,7 +400,7 @@ def get_novo_bolsa_familia(
 @router.post("/orgaos/siafi/collect", response_model=TransparenciaCollectResponse)
 async def collect_transparencia_siafi(
     payload: TransparenciaCollectRequest | None = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     filters = payload or TransparenciaCollectRequest()
     return await collect_orgaos_siafi(
@@ -412,7 +413,7 @@ async def collect_transparencia_siafi(
 @router.post("/orgaos/siape/collect", response_model=TransparenciaCollectResponse)
 async def collect_transparencia_siape(
     payload: TransparenciaCollectRequest | None = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     filters = payload or TransparenciaCollectRequest()
     return await collect_orgaos_siape(

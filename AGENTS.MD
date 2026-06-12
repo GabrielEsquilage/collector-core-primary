@@ -101,3 +101,29 @@ Importante:
 - reutilize estruturas existentes sempre que possível
 - entregue os arquivos completos alterados
 - ao final, rode os testes possíveis ou validações disponíveis e resuma o que foi criado
+
+---
+
+## Code Review: `app/services/transparencia/jobs/`
+
+Analisando a estrutura e a implementação do diretório `app/services/transparencia/jobs/`, a base do projeto tem decisões arquiteturais sólidas, mas esconde gargalos críticos relacionados à concorrência e banco de dados.
+
+### 🟢 Pontos Fortes
+
+1. **Separação de Responsabilidades (Separation of Concerns):** A divisão é madura. `repository.py` lida com as queries do SQLAlchemy, `service.py` aplica regras de negócio (seed, queuing), `runner.py` orquestra a execução e `worker.py` roda o loop de background. 
+2. **Tipagem Estática:** O uso extensivo de `TypedDict`, retornos tipados e listas (`tuple`, `list`, etc) mostra uma base sólida.
+3. **Resiliência:** Lógica de *Stale Jobs* e contagem de tentativas (`max_attempts`) evita que jobs fiquem presos como `RUNNING`.
+4. **Rate Limiting Dinâmico:** A classe `PortalRequestRateLimiter` adapta requests por horário, evitando bans de IP.
+
+### 🔴 Pontos de Atenção Críticos (Gargalos)
+
+1. **Bloqueio do Event Loop (Crítico):** No `worker.py`, `asyncio.gather` chama métodos síncronos com SQLAlchemy (`SessionLocal`). Como as conexões não são assíncronas, *cada query no banco bloqueia todo o event loop do processo*, inutilizando o paralelismo do `gather` e travando potenciais rotas HTTP (FastAPI) no mesmo worker. O correto é migrar para `AsyncSession` (via `asyncpg`).
+2. **Custo de Conexões (`runner.py`):** O job item no `runner.py` abre e fecha a sessão `SessionLocal` em CADA etapa do fluxo. Um job com 10.000 itens vai recriar o contexto 30.000 vezes, gerando enorme overhead no connection pool.
+3. **State Global no Rate Limiter:** `PortalRequestRateLimiter` usa locks do `asyncio` em memória. Com múltiplos workers (gunicorn/pods), o estado é segmentado e o Rate Limit passa a não ser global. Ideal é migrar o state lock para um controle via Redis.
+4. **Commit Excessivo no Seed:** Em `service.py`, `db.commit()` ocorre dentro do laço `for plan in plans`. Falhas no meio geram DB inconsistente; deve-se preferir `flush` ou adicionar todos e comitar apenas no final.
+5. **Paginação com Offset:** Consultas que utilizam `.offset().limit()` em tabelas de logging tenderão a ficar ineficientes; sugere-se paginação Keysets (Cursor).
+
+### Plano de Ação:
+* **Refatoração Async:** Implementar suporte oficial ao driver `asyncpg` no banco de dados e modificar os repositórios do fluxo de jobs para retornarem chamadas assíncronas reais.
+* **Agrupamento de Transações:** Revisar injeção de sessão nas rotinas que abrem excessivamente a conexão.
+
