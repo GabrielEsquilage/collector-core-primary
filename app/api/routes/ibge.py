@@ -131,3 +131,24 @@ def get_municipio_by_id(
     if municipio is None:
         raise HTTPException(status_code=404, detail="Municipio not found")
     return municipio
+
+from app.models import FatoDemografia
+from app.schemas.ibge import DemografiaListResponse
+from sqlalchemy import select
+
+@router.get("/demografia/municipios/{codigo_ibge}", response_model=DemografiaListResponse)
+def get_demografia_municipio(
+    codigo_ibge: str,
+    ano: int | None = Query(default=None),
+    db: Session = Depends(get_db)
+):
+    stmt = select(FatoDemografia).where(FatoDemografia.codigo_ibge_municipio == codigo_ibge)
+    if ano is not None:
+        stmt = stmt.where(FatoDemografia.ano == ano)
+        
+    resultados = db.execute(stmt).scalars().all()
+    
+    return DemografiaListResponse(
+        total=len(resultados),
+        items=resultados
+    )

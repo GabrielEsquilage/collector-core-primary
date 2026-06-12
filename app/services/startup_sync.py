@@ -26,6 +26,19 @@ async def run_startup_sync(app: FastAPI):
         try:
             logger.info("Starting IBGE sync...")
             results["ibge"] = await asyncio.to_thread(sync_localidades_with_new_session)
+            
+            from app.services.ibge.metadados_sync_service import sync_metadados_pesquisas_with_new_session
+            logger.info("Starting IBGE researches metadata sync...")
+            results["ibge_metadados"] = await sync_metadados_pesquisas_with_new_session()
+            
+            from app.services.ibge.periodos_sync_service import sync_all_periodos_with_new_session
+            logger.info("Starting IBGE researches periods sync...")
+            results["ibge_periodos"] = await sync_all_periodos_with_new_session()
+            
+            from app.services.ibge.sidra_sync_service import sync_sidra_population_2022
+            logger.info("Starting SIDRA population 2022 sync...")
+            results["sidra_pop_2022"] = await sync_sidra_population_2022()
+            
             logger.info("IBGE sync finished successfully.")
         except Exception as exc:
             errors["ibge"] = str(exc)

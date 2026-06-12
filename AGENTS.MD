@@ -177,3 +177,69 @@ Python
 4. Checklist de Validação
 
     Ordem das Colunas: Verifique se o df.select([ ... ]) que cria o df_clean está exatamente na mesma ordem dos campos do INSERT INTO. O método .rows() confia que a ordem das colunas do DataFrame corresponde aos valores esperados pelo banco de dados.
+
+---
+
+# Integração IBGE - Metadados e SIDRA (Collector Primary)
+
+## 📌 Contexto e Objetivo
+Expandir a integração existente do IBGE (que atualmente sincroniza Estados e Municípios) no `Collector Primary`. O objetivo é automatizar a descoberta de pesquisas ativas via API de Metadados, identificar novos períodos disponíveis e realizar a extração pesada dos dados estatísticos demográficos brutos via API do SIDRA, armazenando tudo no PostgreSQL e servindo via API interna.
+
+## 🛠 Arquitetura e Padrões
+* **Framework Base:** Python 3.10+ com FastAPI.
+* **ORM e Migrations:** SQLAlchemy (ou SQLModel) e Alembic.
+* **Processamento de Dados:** Polars (manipulação estrutural de alto desempenho e limpeza do JSON do SIDRA).
+* **Requisições HTTP:** `httpx` (cliente assíncrono).
+* **Orquestração:** Celery, APScheduler ou similar para agendamento dos jobs de sincronização.
+* **Banco de Dados:** PostgreSQL (cargas via *Upsert* / `ON CONFLICT DO UPDATE`).
+
+---
+
+## 📋 Épicos e Tarefas (Tasks)
+
+### Fase 1: Modelagem do Catálogo de Metadados
+**Objetivo:** Criar a tabela dimensão e a rotina de sincronização das pesquisas disponíveis.
+
+* [ ] **Task 1.1: Criar Modelos SQLAlchemy e Migration Alembic (`dim_pesquisa_ibge`)**
+    * **Campos:** `codigo` (String, Primary Key), `nome` (String), `situacao` (String), `categoria` (String), `periodicidade_divulgacao` (String), `tags_tematicas` (ARRAY de Strings ou JSONB), `atualizado_em` (DateTime, default `func.now()`).
+* [ ] **Task 1.2: Criar Job de Sincronização do Catálogo**
+    * **Endpoint:** `GET https://servicodados.ibge.gov.br/api/v2/metadados/pesquisas`
+    * **Regra de Negócio Crítica:** Ingerir/Atualizar APENAS os registros onde a chave `"situacao"` for igual a `"Ativa"`.
+    * **Ação:** Utilizar `httpx.AsyncClient` e fazer um *Upsert* usando a sintaxe do SQLAlchemy (`insert().on_conflict_do_update()`).
+
+### Fase 2: Orquestração e Descoberta de Períodos
+**Objetivo:** Identificar automaticamente quando o IBGE libera novos dados para as pesquisas ativas.
+
+* [ ] **Task 2.1: Criar Job de Varredura de Períodos**
+    * **Lógica:** Buscar no banco todos os códigos de pesquisas ativas. Para cada código, fazer a requisição:
+    * **Endpoint:** `GET /pesquisas/{codigo_pesquisa}/periodos`
+    * **Ação:** Comparar os períodos retornados com os já mapeados no banco. Se houver um período novo (ex: virou o ano do Censo), colocar uma mensagem na fila ou disparar diretamente a Task 3.1.
+
+### Fase 3: Ingestão Pesada de Dados (Integração SIDRA)
+**Objetivo:** Extrair o dado populacional/demográfico real via processamento em lote.
+
+* [ ] **Task 3.1: Extração e Transformação com Polars**
+    * **Endpoint de Exemplo:** `GET https://apisidra.ibge.gov.br/values/t/9514/n6/in%20n3%2041/v/93/p/2022`
+    * **Regra de Negócio Crítica (Parsing):** O array retornado do SIDRA possui cabeçalho descritivo no índice `0`. Carregar o DataFrame Polars ignorando a primeira linha (`raw_df = pl.DataFrame(data[1:])`).
+* [ ] **Task 3.2: Limpeza e Tipagem (`Polars`)**
+    * Selecionar e renomear: `D1C` para `codigo_ibge_municipio` (Int64) e `V` para `valor_estatistico` (Int64/Float64).
+* [ ] **Task 3.3: Carga Batch no PostgreSQL**
+    * Converter o DataFrame tratado e realizar inserção em lote (ex: `write_database` do Polars usando engine SQLAlchemy ou *Bulk Upsert* nativo) na tabela `dim_municipio` ou `fato_demografia`.
+
+### Fase 4: Camada de Distribuição (API FastAPI)
+**Objetivo:** Servir os dados limpos e consolidados.
+
+* [ ] **Task 4.1: Criar Routers (`APIRouter`) no FastAPI**
+    * **Rota sugerida:** `GET /api/v1/demografia/municipios/{codigo_ibge}`
+    * **Ação:** Criar funções assíncronas mapeando parâmetros opcionais (Query Parameters como `?ano=2022`) para montar a query SQLAlchemy de forma dinâmica.
+* [ ] **Task 4.2: Configurar Schemas Pydantic**
+    * Criar os modelos Pydantic de `Response` para garantir a validação e formatação correta de saída do JSON (padronização camelCase se exigido pelo frontend).
+
+### Fase 5: Garantia de Qualidade (QA)
+**Objetivo:** Assegurar resiliência das integrações.
+
+* [ ] **Task 5.1: Resiliência de Rede**
+    * Adicionar um mecanismo de retry (como a biblioteca `tenacity` do Python) nas chamadas `httpx` para lidar com falhas temporárias (Status 503, Timeout) nas APIs do IBGE.
+* [ ] **Task 5.2: Testes Automatizados com Pytest**
+    * Utilizar `pytest` + `pytest-asyncio`.
+    * Usar a biblioteca `respx` ou `pytest-httpx` para *mockar* as respostas das APIs do IBGE, testando especificamente a lógica de exclusão do `índice 0` do SIDRA e os filtros de situação `"Ativa"`.
