@@ -49,6 +49,8 @@ def transform_sidra_data(df: pl.DataFrame):
         pl.col("V").alias("valor_estatistico")
     ])
     
+    from datetime import datetime
+    
     # Cast dos tipos
     df_clean = df_clean.with_columns([
         pl.col("codigo_ibge_municipio").cast(pl.Utf8),
@@ -57,7 +59,8 @@ def transform_sidra_data(df: pl.DataFrame):
         # Em casos onde o IBGE manda "..." ou "-", substituiremos por None/Null para poder fazer o cast
         pl.col("valor_estatistico")
           .str.replace_all(r"[^0-9\.]", "", literal=False)
-          .cast(pl.Float64, strict=False)
+          .cast(pl.Float64, strict=False),
+        pl.lit(datetime.utcnow()).alias("created_at")
     ])
     
     # Drop rows that failed to parse into valid float values
@@ -77,7 +80,7 @@ def load_sidra_data(df: pl.DataFrame):
     
     insert_query = """
         INSERT INTO datacrypt.fato_demografia 
-        (codigo_ibge_municipio, ano, variavel_codigo, valor_estatistico)
+        (codigo_ibge_municipio, ano, variavel_codigo, valor_estatistico, created_at)
         VALUES %s
         ON CONFLICT (codigo_ibge_municipio, ano, variavel_codigo) 
         DO UPDATE SET 
@@ -104,6 +107,19 @@ async def sync_sidra_population_2022():
     # filtrando todos do Paraná "in n3 41" (ou todos do Brasil se usar all)
     # Vamos pegar todos do Brasil usando "n6/all"
     url = "https://apisidra.ibge.gov.br/values/t/9514/n6/all/v/93/p/2022"
+    
+    raw_df = await extract_sidra_data(url)
+    if raw_df is None:
+        return {"inserted": 0, "status": "no_data"}
+        
+    df_clean = transform_sidra_data(raw_df)
+    inserted = load_sidra_data(df_clean)
+    
+    return {"inserted": inserted, "status": "success"}
+
+async def sync_sidra_population_2010():
+    # Censo 2010: Tabela 202, Nível 6 (Municípios), Variável 93, Período 2010
+    url = "https://apisidra.ibge.gov.br/values/t/202/n6/all/v/93/p/2010"
     
     raw_df = await extract_sidra_data(url)
     if raw_df is None:

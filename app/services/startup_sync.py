@@ -35,9 +35,12 @@ async def run_startup_sync(app: FastAPI):
             logger.info("Starting IBGE researches periods sync...")
             results["ibge_periodos"] = await sync_all_periodos_with_new_session()
             
-            from app.services.ibge.sidra_sync_service import sync_sidra_population_2022
+            from app.services.ibge.sidra_sync_service import sync_sidra_population_2022, sync_sidra_population_2010
             logger.info("Starting SIDRA population 2022 sync...")
             results["sidra_pop_2022"] = await sync_sidra_population_2022()
+            
+            logger.info("Starting SIDRA population 2010 sync...")
+            results["sidra_pop_2010"] = await sync_sidra_population_2010()
             
             logger.info("IBGE sync finished successfully.")
         except Exception as exc:
