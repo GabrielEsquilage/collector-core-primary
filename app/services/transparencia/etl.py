@@ -70,9 +70,9 @@ def run_etl():
         keep="last"
     )
     
-    records = df_clean.to_dicts()
+    values = df_clean.rows()
     
-    print(f"Registros únicos pós-limpeza: {len(records)}")
+    print(f"Registros únicos pós-limpeza prontos para inserção: {len(values)}")
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -102,16 +102,7 @@ def run_etl():
                 quantidade_beneficiados = EXCLUDED.quantidade_beneficiados
         """
         
-        values = [
-            (
-                r["tipo_beneficio"],
-                r["data_referencia"],
-                r["municipio_codigo_ibge"],
-                r["valor"],
-                r["quantidade_beneficiados"]
-            )
-            for r in records
-        ]
+        
         
         print("Realizando Upsert no PostgreSQL...")
         execute_values(cur, insert_query, values, page_size=1000)
