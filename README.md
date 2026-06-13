@@ -68,6 +68,7 @@ A API possui os seguintes sub-roteadores sob `/api/v1/`:
 ## 📄 Licença
 Licenciado sob a política de software livre especificada no arquivo `LICENSE`.
 
+## Imagens:
 
 <img width="1052" height="582" alt="image" src="https://github.com/user-attachments/assets/c3744f63-12a4-49f1-ab35-f5fe3bf6b31d" />
 
