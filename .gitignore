@@ -1,9 +1,13 @@
 .venv/
+.venv-test/
 __pycache__/
 *.pyc
 .codex
 .env
 *.tsbuildinfo
 *.log
-*.md
 app/data/
+
+# Documentação de Agentes
+agents.md
+agents_frontend.md

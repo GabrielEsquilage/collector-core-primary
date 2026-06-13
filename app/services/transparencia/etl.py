@@ -94,7 +94,7 @@ def run_etl():
         
         insert_query = """
             INSERT INTO datacrypt.fato_repasse_municipio 
-            (tipo_beneficio, data_referencia, municipio_codigo_ibge, valor, quantidade_beneficiados)
+            (tipo_beneficio, data_referencia, municipio_codigo_ibge, valor, quantidade_beneficiados, created_at)
             VALUES %s
             ON CONFLICT (tipo_beneficio, data_referencia, municipio_codigo_ibge) 
             DO UPDATE SET 
@@ -105,7 +105,7 @@ def run_etl():
         
         
         print("Realizando Upsert no PostgreSQL...")
-        execute_values(cur, insert_query, values, page_size=1000)
+        execute_values(cur, insert_query, values, page_size=1000, template="(%s, %s, %s, %s, %s, NOW())")
         
         conn.commit()
         print("Carga Gold (PostgreSQL) concluída com sucesso!")
