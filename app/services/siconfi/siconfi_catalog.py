@@ -2,36 +2,29 @@ from enum import Enum
 from typing import Dict, Any
 
 class IndicadorMacro(str, Enum):
-    # Arrecadação e Saúde Financeira Geral
     RECEITA_TOTAL = "receita_total"
     DESPESA_TOTAL = "despesa_total"
     RECEITA_CORRENTE_LIQUIDA = "receita_corrente_liquida"
     
-    # Despesas Estratégicas (Funções de Governo)
     DESPESA_SAUDE = "despesa_saude"
     DESPESA_EDUCACAO = "despesa_educacao"
     DESPESA_SANEAMENTO = "despesa_saneamento"
     DESPESA_URBANISMO = "despesa_urbanismo"
     DESPESA_SEGURANCA = "despesa_seguranca"
     
-    # Perfil de Gastos e Endividamento
     INVESTIMENTOS = "investimentos"
     DESPESA_PESSOAL = "despesa_pessoal"
     DIVIDA_CONSOLIDADA = "divida_consolidada"
     
-    # Inteligência e Risco Fiscal (Avançado)
     RESTOS_A_PAGAR = "restos_a_pagar"
     RESULTADO_PRIMARIO = "resultado_primario"
     RESULTADO_PREVIDENCIARIO = "resultado_previdenciario"
     PPP_CONTRATADAS = "ppp_contratadas"
 
-# Catálogo Semântico do SICONFI
-# Mapeia nomes limpos para as colunas reais e caóticas da API do governo
 SICONFI_CATALOG: Dict[IndicadorMacro, Dict[str, str]] = {
-    # --- RREO: Execução Orçamentária Básica ---
     IndicadorMacro.RECEITA_TOTAL: {
         "anexo": "RREO-Anexo 01",
-        "coluna_like": "%Bimestre%", # Cobre "Até o Bimestre (c)" (2019) e "RECEITAS REALIZADAS..." (2023)
+        "coluna_like": "%Bimestre%",
         "conta_like": "RECEITAS (EXCETO%"
     },
     IndicadorMacro.DESPESA_TOTAL: {
@@ -50,16 +43,15 @@ SICONFI_CATALOG: Dict[IndicadorMacro, Dict[str, str]] = {
         "conta_like": "%Investimentos%"
     },
     
-    # --- RREO Anexo 02: Gastos por Setor/Função ---
     IndicadorMacro.DESPESA_SAUDE: {
         "anexo": "RREO-Anexo 02",
         "coluna_like": "%DESPESAS LIQUIDADAS%",
-        "conta_like": "%Sa_de%" # Cobre "10 - Saúde", "Saúde", e erros de encoding "Sade"
+        "conta_like": "%Sa_de%"
     },
     IndicadorMacro.DESPESA_EDUCACAO: {
         "anexo": "RREO-Anexo 02",
         "coluna_like": "%DESPESAS LIQUIDADAS%",
-        "conta_like": "%Educa%" # Cobre "12 - Educação", "Educação", "Educao", "Educa"
+        "conta_like": "%Educa%"
     },
     IndicadorMacro.DESPESA_SANEAMENTO: {
         "anexo": "RREO-Anexo 02",
@@ -77,7 +69,6 @@ SICONFI_CATALOG: Dict[IndicadorMacro, Dict[str, str]] = {
         "conta_like": "06 - Segurança Pública"
     },
     
-    # --- Inteligência Fiscal (Avançado) ---
     IndicadorMacro.RESTOS_A_PAGAR: {
         "anexo": "RREO-Anexo 07",
         "coluna_like": "%Saldo%",
@@ -99,7 +90,6 @@ SICONFI_CATALOG: Dict[IndicadorMacro, Dict[str, str]] = {
         "conta_like": "TOTAL DE ATIVOS%"
     },
     
-    # --- RGF: Gestão Fiscal e Limites (Endividamento e Pessoal) ---
     IndicadorMacro.DESPESA_PESSOAL: {
         "anexo": "RGF-Anexo 01",
         "coluna_like": "%VALOR%",

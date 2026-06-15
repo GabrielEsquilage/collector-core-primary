@@ -14,9 +14,6 @@ class RreoSyncService:
         self.gold_path = os.path.join(data_lake_root, "gold", "siconfi_macro")
 
     async def extract_and_load_silver(self, entes_ibge: List[str], ano: int, periodos: List[int]):
-        """
-        Passo 1: Baixa da API (Raw) e salva em Parquet particionado (Silver).
-        """
         logger.info(f"Iniciando extração RREO {ano} para {len(entes_ibge)} entes...")
         all_data = []
         
@@ -35,7 +32,6 @@ class RreoSyncService:
 
         df = pd.DataFrame(all_data)
         
-        # Limpeza e Tipagem para a Camada Prata
         df_clean = df[['exercicio', 'periodo', 'cod_ibge', 'uf', 'instituicao', 'anexo', 'coluna', 'conta', 'valor']].copy()
         df_clean.rename(columns={'exercicio': 'ano'}, inplace=True)
         df_clean['cod_ibge'] = df_clean['cod_ibge'].astype(str)
@@ -43,24 +39,18 @@ class RreoSyncService:
         
         os.makedirs(self.silver_path, exist_ok=True)
         
-        # Append ou Sobrescrita na partição do ano
         df_clean.to_parquet(
             self.silver_path,
             engine='pyarrow',
             partition_cols=['ano'],
             index=False
-            # em produção ideal usar `existing_data_behavior='delete_matching'` 
         )
         logger.info(f"Camada Prata atualizada em {self.silver_path}/ano={ano}/")
 
     def build_gold_layer(self, ano: int):
-        """
-        Passo 2: Lê a Camada Prata, usa o Catálogo para pivotar e cria a Camada Ouro (KPIs).
-        """
         logger.info(f"Construindo Camada Ouro para o ano {ano}...")
         con = duckdb.connect()
         
-        # Constrói os sub-selects baseados no catálogo
         select_parts = ["cod_ibge", "uf", "periodo"]
         
         for indicador, regras in SICONFI_CATALOG.items():
@@ -69,7 +59,6 @@ class RreoSyncService:
             coluna_like = regras["coluna_like"]
             conta_like = regras["conta_like"]
             
-            # Cria a agregação condicional no SQL (Pivot)
             sql_case = f"""
                 SUM(CASE 
                     WHEN anexo = '{anexo}' 
@@ -89,10 +78,8 @@ class RreoSyncService:
             GROUP BY cod_ibge, uf, periodo
         """
         
-        # Executa o Pivot e pega como DataFrame Pandas
         df_gold = con.execute(query).df()
         
-        # Salva o arquivo Gold final (Pequeno e hiper-otimizado para o Frontend)
         os.makedirs(self.gold_path, exist_ok=True)
         gold_file = os.path.join(self.gold_path, f"kpis_macro_{ano}.parquet")
         df_gold.to_parquet(gold_file, engine='pyarrow', index=False)
