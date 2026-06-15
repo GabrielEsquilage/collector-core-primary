@@ -72,7 +72,9 @@ def health_startup_sync():
 
 
 from app.api.routes.admin import router as admin_router
+from app.api.routes.siconfi import router as siconfi_router
 
 app.include_router(ibge_router, prefix="/api/v1")
 app.include_router(transparencia_router, prefix="/api/v1")
+app.include_router(siconfi_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1/admin")
