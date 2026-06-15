@@ -11,3 +11,6 @@ app/data/
 # Documentação de Agentes
 agents.md
 agents_frontend.md
+
+data_lake/
+

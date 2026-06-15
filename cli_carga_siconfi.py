@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.services.siconfi.siconfi_service import SiconfiService
 from app.services.siconfi.rreo_sync_service import RreoSyncService
 
-async def executar_carga_manual(anos: list[int], delay_segundos: float = 90.0):
+async def executar_carga_manual(anos: list[int], delay_segundos: float = 90.0, limite: int = 0):
     """
     Script de execução manual projetado para projetos Open Source.
     Baixa os dados um a um, de forma respeitosa (polite scraper), 
@@ -30,7 +30,11 @@ async def executar_carga_manual(anos: list[int], delay_segundos: float = 90.0):
     entes = await siconfi.get_entes()
     codigos_ibge = [str(ente['cod_ibge']) for ente in entes if ente.get('cod_ibge')]
     
-    logger.info(f"Total de Municípios encontrados: {len(codigos_ibge)}")
+    if limite > 0:
+        logger.warning(f"Modo Teste (--limite): Limitando a extração para apenas os {limite} primeiros municípios.")
+        codigos_ibge = codigos_ibge[:limite]
+        
+    logger.info(f"Total de Municípios encontrados para extração: {len(codigos_ibge)}")
     
     for ano in anos:
         logger.info(f"\n---> Iniciando processamento do ano {ano} <---")
@@ -72,10 +76,13 @@ if __name__ == "__main__":
     # Padrão: 1,5 minutos = 90 segundos
     parser.add_argument("--delay", type=float, default=90.0, 
                         help="Tempo de espera entre os entes em segundos (Padrão: 90.0 = 1,5 min)")
+    parser.add_argument("--limite", type=int, default=0, 
+                        help="Limite de municípios para baixar (útil para testes rápidos)")
     
     args = parser.parse_args()
     
     try:
-        asyncio.run(executar_carga_manual(args.anos, args.delay))
+        asyncio.run(executar_carga_manual(args.anos, args.delay, args.limite))
+
     except KeyboardInterrupt:
         logger.warning("\nExecução interrompida manualmente pelo desenvolvedor. Os dados salvos até agora no Parquet estão seguros!")

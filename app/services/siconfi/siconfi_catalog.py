@@ -31,7 +31,7 @@ SICONFI_CATALOG: Dict[IndicadorMacro, Dict[str, str]] = {
     # --- RREO: Execução Orçamentária Básica ---
     IndicadorMacro.RECEITA_TOTAL: {
         "anexo": "RREO-Anexo 01",
-        "coluna_like": "%RECEITAS REALIZADAS%",
+        "coluna_like": "%Bimestre%", # Cobre "Até o Bimestre (c)" (2019) e "RECEITAS REALIZADAS..." (2023)
         "conta_like": "RECEITAS (EXCETO%"
     },
     IndicadorMacro.DESPESA_TOTAL: {
@@ -47,19 +47,19 @@ SICONFI_CATALOG: Dict[IndicadorMacro, Dict[str, str]] = {
     IndicadorMacro.INVESTIMENTOS: {
         "anexo": "RREO-Anexo 01",
         "coluna_like": "%DESPESAS LIQUIDADAS%",
-        "conta_like": "Investimentos"
+        "conta_like": "%Investimentos%"
     },
     
     # --- RREO Anexo 02: Gastos por Setor/Função ---
     IndicadorMacro.DESPESA_SAUDE: {
         "anexo": "RREO-Anexo 02",
         "coluna_like": "%DESPESAS LIQUIDADAS%",
-        "conta_like": "10 - Saúde"
+        "conta_like": "%Sa_de%" # Cobre "10 - Saúde", "Saúde", e erros de encoding "Sade"
     },
     IndicadorMacro.DESPESA_EDUCACAO: {
         "anexo": "RREO-Anexo 02",
         "coluna_like": "%DESPESAS LIQUIDADAS%",
-        "conta_like": "12 - Educação"
+        "conta_like": "%Educa%" # Cobre "12 - Educação", "Educação", "Educao", "Educa"
     },
     IndicadorMacro.DESPESA_SANEAMENTO: {
         "anexo": "RREO-Anexo 02",
