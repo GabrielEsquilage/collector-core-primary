@@ -37,15 +37,30 @@ class RreoSyncService:
         df_clean['cod_ibge'] = df_clean['cod_ibge'].astype(str)
         df_clean['valor'] = pd.to_numeric(df_clean['valor'], errors='coerce')
         
-        os.makedirs(self.silver_path, exist_ok=True)
+        # Garante que só vamos salvar os dados do ano que realmente solicitamos
+        df_clean = df_clean[df_clean['ano'] == ano].copy()
+        
+        if df_clean.empty:
+            logger.warning(f"A API não retornou dados válidos para o ano {ano}. Ignorando salvamento.")
+            return
+
+        # Removemos a coluna ano pois ela será inferida pelo Hive Partitioning do DuckDB (nome da pasta)
+        df_clean.drop(columns=['ano'], inplace=True)
+        
+        # Caminho explícito para a partição do ano
+        partition_path = os.path.join(self.silver_path, f"ano={ano}")
+        os.makedirs(partition_path, exist_ok=True)
+        
+        # Salva um arquivo determinístico por ente para evitar milhares de arquivos com UUID
+        ente_ref = entes_ibge[0] if entes_ibge else "lote"
+        file_path = os.path.join(partition_path, f"rreo_{ente_ref}.parquet")
         
         df_clean.to_parquet(
-            self.silver_path,
+            file_path,
             engine='pyarrow',
-            partition_cols=['ano'],
             index=False
         )
-        logger.info(f"Camada Prata atualizada em {self.silver_path}/ano={ano}/")
+        logger.info(f"Camada Prata atualizada em {file_path}")
 
     def build_gold_layer(self, ano: int):
         logger.info(f"Construindo Camada Ouro para o ano {ano}...")
