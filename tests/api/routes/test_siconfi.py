@@ -95,3 +95,99 @@ def test_get_kpis_municipio_not_found_ibge(mock_gold_layer):
         
         assert response.status_code == 404
         assert "Nenhum dado encontrado para o município 9999999 no ano 2018" in response.json()["detail"]
+
+def test_get_ranking_siconfi_success(mock_gold_layer):
+    with patch("app.api.routes.siconfi.GOLD_PATH", str(mock_gold_layer)):
+        response = client.get("/api/v1/siconfi/ranking/despesa_saude/ano/2018?limit=5")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["ano"] == 2018
+        assert data["indicador"] == "despesa_saude"
+        assert len(data["data"]) == 1
+        
+        # Como pega o max periodo, deve trazer o periodo 2 para o município 1234567
+        assert data["data"][0]["cod_ibge"] == "1234567"
+        assert data["data"][0]["periodo"] == 2
+        assert data["data"][0]["valor"] == 220.0
+
+def test_get_ranking_siconfi_uf_filter(mock_gold_layer):
+    with patch("app.api.routes.siconfi.GOLD_PATH", str(mock_gold_layer)):
+        response = client.get("/api/v1/siconfi/ranking/despesa_saude/ano/2018?uf=RJ")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["data"]) == 0  # mock só tem SP
+
+def test_get_ranking_siconfi_invalid_indicator(mock_gold_layer):
+    with patch("app.api.routes.siconfi.GOLD_PATH", str(mock_gold_layer)):
+        response = client.get("/api/v1/siconfi/ranking/indicador_invalido/ano/2018")
+        
+        # Pydantic validates Enum
+        assert response.status_code == 422
+
+def test_get_serie_historica_siconfi_success(mock_gold_layer):
+    with patch("app.api.routes.siconfi.GOLD_PATH", str(mock_gold_layer)):
+        # Criar outro arquivo parquet para o mock para simular 2019
+        ano2 = 2019
+        file_path = mock_gold_layer / f"kpis_macro_{ano2}.parquet"
+        data = [
+            {
+                "cod_ibge": "1234567",
+                "uf": "SP",
+                "periodo": 1,
+                "despesa_saude": 300.0,
+            }
+        ]
+        df = pd.DataFrame(data)
+        df.to_parquet(file_path, engine="pyarrow", index=False)
+        
+        response = client.get("/api/v1/siconfi/municipio/1234567/serie-historica/despesa_saude")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["cod_ibge"] == "1234567"
+        assert data["indicador"] == "despesa_saude"
+        
+        # 2 periods from 2018 mock + 1 period from 2019 mock
+        assert len(data["data"]) == 3
+        assert data["data"][0]["ano"] == 2018
+        assert data["data"][2]["ano"] == 2019
+        assert data["data"][2]["valor"] == 300.0
+
+
+def test_get_agregacao_siconfi_success(mock_gold_layer):
+    with patch("app.api.routes.siconfi.GOLD_PATH", str(mock_gold_layer)):
+        response = client.get("/api/v1/siconfi/agregacao/ano/2018")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["ano"] == 2018
+        assert data["uf"] is None
+        assert len(data["data"]) == 2
+        
+        # Testar a soma
+        assert data["data"][0]["periodo"] == 1
+        assert data["data"][0]["despesa_saude"] == 200.0
+        
+def test_get_agregacao_siconfi_uf(mock_gold_layer):
+    with patch("app.api.routes.siconfi.GOLD_PATH", str(mock_gold_layer)):
+        response = client.get("/api/v1/siconfi/agregacao/ano/2018?uf=SP")
+        
+        assert response.status_code == 200
+        assert response.json()["uf"] == "SP"
+        assert len(response.json()["data"]) == 2
+
+def test_get_comparativo_siconfi_success(mock_gold_layer):
+    with patch("app.api.routes.siconfi.GOLD_PATH", str(mock_gold_layer)):
+        response = client.get("/api/v1/siconfi/comparativo/ano/2018?codigos_ibge=1234567,9999999")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["ano"] == 2018
+        # O município 9999999 não existe, então deve retornar apenas os dados de 1234567
+        assert len(data["data"]) == 2
+        assert data["data"][0]["cod_ibge"] == "1234567"
