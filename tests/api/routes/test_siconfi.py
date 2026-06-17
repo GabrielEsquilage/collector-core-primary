@@ -95,3 +95,34 @@ def test_get_kpis_municipio_not_found_ibge(mock_gold_layer):
         
         assert response.status_code == 404
         assert "Nenhum dado encontrado para o município 9999999 no ano 2018" in response.json()["detail"]
+
+def test_get_ranking_siconfi_success(mock_gold_layer):
+    with patch("app.api.routes.siconfi.GOLD_PATH", str(mock_gold_layer)):
+        response = client.get("/api/v1/siconfi/ranking/despesa_saude/ano/2018?limit=5")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["ano"] == 2018
+        assert data["indicador"] == "despesa_saude"
+        assert len(data["data"]) == 1
+        
+        # Como pega o max periodo, deve trazer o periodo 2 para o município 1234567
+        assert data["data"][0]["cod_ibge"] == "1234567"
+        assert data["data"][0]["periodo"] == 2
+        assert data["data"][0]["valor"] == 220.0
+
+def test_get_ranking_siconfi_uf_filter(mock_gold_layer):
+    with patch("app.api.routes.siconfi.GOLD_PATH", str(mock_gold_layer)):
+        response = client.get("/api/v1/siconfi/ranking/despesa_saude/ano/2018?uf=RJ")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["data"]) == 0  # mock só tem SP
+
+def test_get_ranking_siconfi_invalid_indicator(mock_gold_layer):
+    with patch("app.api.routes.siconfi.GOLD_PATH", str(mock_gold_layer)):
+        response = client.get("/api/v1/siconfi/ranking/indicador_invalido/ano/2018")
+        
+        # Pydantic validates Enum
+        assert response.status_code == 422

@@ -24,3 +24,14 @@ class SiconfiKpiMacroBase(BaseModel):
 class SiconfiKpiMacroResponse(BaseModel):
     ano: int
     data: list[SiconfiKpiMacroBase]
+
+class SiconfiRankingItem(BaseModel):
+    cod_ibge: str
+    uf: str
+    periodo: int
+    valor: float
+
+class SiconfiRankingResponse(BaseModel):
+    ano: int
+    indicador: str
+    data: list[SiconfiRankingItem]
