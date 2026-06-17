@@ -31,7 +31,6 @@ def get_kpis_municipio(
         raise HTTPException(status_code=404, detail=f"Dados consolidados não encontrados para o ano {ano}")
     
     try:
-        # Usamos duckdb para consultar o parquet de forma rápida e eficiente
         query = f"""
             SELECT *
             FROM read_parquet('{gold_file}')
@@ -131,7 +130,7 @@ def get_serie_historica_siconfi(
     """
     try:
         query = f"""
-            SELECT CAST(regexp_extract(filename, 'kpis_macro_([0-9]+)\.parquet', 1) AS INTEGER) AS ano,
+            SELECT CAST(regexp_extract(filename, 'kpis_macro_([0-9]+)\\.parquet', 1) AS INTEGER) AS ano,
                    periodo,
                    {indicador.value} AS valor
             FROM read_parquet('{GOLD_PATH}/*.parquet', filename=true)
