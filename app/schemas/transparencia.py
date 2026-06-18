@@ -283,3 +283,38 @@ class NovoBolsaFamiliaMunicipioListResponse(BaseModel):
     limit: int
     offset: int
     items: list[NovoBolsaFamiliaMunicipioResponse]
+
+class BeneficioAnalyticsSerieItem(BaseModel):
+    ano: int
+    mes: int
+    valor: Decimal
+    quantidade_beneficiados: int
+
+class BeneficioAnalyticsSerieResponse(BaseModel):
+    tipo_beneficio: str
+    codigo_ibge: str
+    data: list[BeneficioAnalyticsSerieItem]
+
+class BeneficioAnalyticsRankingItem(BaseModel):
+    codigo_ibge: str
+    uf: str
+    nome_municipio: str
+    valor_total: Decimal
+    quantidade_beneficiados_total: int
+
+class BeneficioAnalyticsRankingResponse(BaseModel):
+    tipo_beneficio: str
+    ano: int
+    uf: str | None = None
+    data: list[BeneficioAnalyticsRankingItem]
+
+class BeneficioAnalyticsAgregacaoItem(BaseModel):
+    mes: int
+    valor_total: Decimal
+    quantidade_beneficiados_total: int
+
+class BeneficioAnalyticsAgregacaoResponse(BaseModel):
+    tipo_beneficio: str
+    ano: int
+    uf: str | None = None
+    data: list[BeneficioAnalyticsAgregacaoItem]

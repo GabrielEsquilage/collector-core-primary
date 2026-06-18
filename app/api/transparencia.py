@@ -27,6 +27,9 @@ from app.schemas.transparencia import (
     TransparenciaCollectResponse,
     TransparenciaOrgaoListResponse,
     TransparenciaOrgaoResponse,
+    BeneficioAnalyticsSerieResponse,
+    BeneficioAnalyticsRankingResponse,
+    BeneficioAnalyticsAgregacaoResponse,
 )
 from app.services.transparencia.beneficios import (
     BeneficioPeriodoInvalidoError,
@@ -497,3 +500,62 @@ def get_orgao_siape_by_id(
     if item is None:
         raise HTTPException(status_code=404, detail="Orgao SIAPE not found")
     return item
+
+
+@router.get(
+    "/beneficios/analytics/serie-historica",
+    response_model=BeneficioAnalyticsSerieResponse,
+)
+def get_serie_historica(
+    tipo_beneficio: str = Query(..., alias="tipoBeneficio", min_length=1),
+    codigo_ibge: str = Query(..., alias="codigoIbge", min_length=1),
+    db: Session = Depends(get_db),
+):
+    from app.services.transparencia.analytics import get_serie_historica_beneficio
+    data = get_serie_historica_beneficio(db, tipo_beneficio, codigo_ibge)
+    return BeneficioAnalyticsSerieResponse(
+        tipo_beneficio=tipo_beneficio,
+        codigo_ibge=codigo_ibge,
+        data=data
+    )
+
+
+@router.get(
+    "/beneficios/analytics/ranking",
+    response_model=BeneficioAnalyticsRankingResponse,
+)
+def get_ranking(
+    tipo_beneficio: str = Query(..., alias="tipoBeneficio", min_length=1),
+    ano: int = Query(..., ge=2000, le=2100),
+    uf: str | None = Query(default=None, min_length=2, max_length=2),
+    limit: int = Query(default=10, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    from app.services.transparencia.analytics import get_ranking_beneficio
+    data = get_ranking_beneficio(db, tipo_beneficio, ano, uf, limit)
+    return BeneficioAnalyticsRankingResponse(
+        tipo_beneficio=tipo_beneficio,
+        ano=ano,
+        uf=uf,
+        data=data
+    )
+
+
+@router.get(
+    "/beneficios/analytics/agregacao",
+    response_model=BeneficioAnalyticsAgregacaoResponse,
+)
+def get_agregacao(
+    tipo_beneficio: str = Query(..., alias="tipoBeneficio", min_length=1),
+    ano: int = Query(..., ge=2000, le=2100),
+    uf: str | None = Query(default=None, min_length=2, max_length=2),
+    db: Session = Depends(get_db),
+):
+    from app.services.transparencia.analytics import get_agregacao_beneficio
+    data = get_agregacao_beneficio(db, tipo_beneficio, ano, uf)
+    return BeneficioAnalyticsAgregacaoResponse(
+        tipo_beneficio=tipo_beneficio,
+        ano=ano,
+        uf=uf,
+        data=data
+    )

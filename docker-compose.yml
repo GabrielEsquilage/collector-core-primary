@@ -47,6 +47,7 @@ services:
       - "8000:8000"
     volumes:
       - ./app/data:/app/app/data
+      - ./data_lake:/app/data_lake
     healthcheck:
       test:
         [
