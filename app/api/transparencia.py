@@ -30,6 +30,7 @@ from app.schemas.transparencia import (
     BeneficioAnalyticsSerieResponse,
     BeneficioAnalyticsRankingResponse,
     BeneficioAnalyticsAgregacaoResponse,
+    BeneficioAnalyticsMunicipioKpisResponse,
 )
 from app.services.transparencia.beneficios import (
     BeneficioPeriodoInvalidoError,
@@ -559,3 +560,25 @@ def get_agregacao(
         uf=uf,
         data=data
     )
+
+@router.get(
+    "/beneficios/analytics/municipio-kpis",
+    response_model=BeneficioAnalyticsMunicipioKpisResponse,
+)
+def get_municipio_kpis(
+    tipo_beneficio: str = Query(..., alias="tipoBeneficio", min_length=1),
+    ano: int = Query(..., ge=2000, le=2100),
+    uf: str = Query(..., min_length=2, max_length=2),
+    codigo_ibge: str = Query(..., alias="codigoIbge", min_length=1),
+    db: Session = Depends(get_db),
+):
+    from app.services.transparencia.analytics import get_municipio_kpis_beneficio
+    data = get_municipio_kpis_beneficio(db, tipo_beneficio, ano, uf, codigo_ibge)
+    return BeneficioAnalyticsMunicipioKpisResponse(
+        tipo_beneficio=tipo_beneficio,
+        ano=ano,
+        uf=uf,
+        codigo_ibge=codigo_ibge,
+        data=data
+    )
+

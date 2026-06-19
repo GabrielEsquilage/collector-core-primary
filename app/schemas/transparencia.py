@@ -318,3 +318,21 @@ class BeneficioAnalyticsAgregacaoResponse(BaseModel):
     ano: int
     uf: str | None = None
     data: list[BeneficioAnalyticsAgregacaoItem]
+
+class BeneficioAnalyticsMunicipioKpisHistoricoItem(BaseModel):
+    mes: int
+    valor: float
+    quantidade_beneficiados: int
+
+class BeneficioAnalyticsMunicipioKpisData(BaseModel):
+    media_beneficiarios_municipio: float
+    valor_medio_mensal_municipio: float
+    taxa_variacao_beneficiarios_municipio: float
+    historico_mensal_municipio: list[BeneficioAnalyticsMunicipioKpisHistoricoItem]
+
+class BeneficioAnalyticsMunicipioKpisResponse(BaseModel):
+    tipo_beneficio: str
+    ano: int
+    uf: str
+    codigo_ibge: str
+    data: BeneficioAnalyticsMunicipioKpisData
