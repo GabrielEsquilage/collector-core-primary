@@ -2,7 +2,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract, Integer
 
-from app.models import FatoRepasseMunicipio, Municipio, Estado
+from app.models import FatoRepasseMunicipio, Municipio, Estado, FatoDemografia
 
 def get_serie_historica_beneficio(db: Session, tipo_beneficio: str, codigo_ibge: str):
     query = (
@@ -152,9 +152,32 @@ def get_municipio_kpis_beneficio(db: Session, tipo_beneficio: str, ano: int, uf:
     else:
         taxa_variacao_beneficiarios_municipio = 0.0
 
+    # 5. Censo Demografico / Populacao (Busca o registro cronologicamente mais proximo ao ano consultado)
+    populacao_query = (
+        db.query(FatoDemografia.valor_estatistico)
+        .filter(
+            FatoDemografia.codigo_ibge_municipio == codigo_ibge,
+            FatoDemografia.variavel_codigo == '93'
+        )
+        .order_by(func.abs(FatoDemografia.ano - ano), FatoDemografia.ano.desc())
+        .first()
+    )
+
+    populacao_total = int(populacao_query[0]) if populacao_query else None
+    taxa_cobertura_social = None
+    repasse_per_capita = None
+
+    if populacao_total and populacao_total > 0:
+        taxa_cobertura_social = (media_beneficiarios_municipio / populacao_total) * 100.0
+        valor_total_ano = valor_medio_mensal_municipio * 12.0
+        repasse_per_capita = valor_total_ano / populacao_total
+
     return {
         "media_beneficiarios_municipio": float(media_beneficiarios_municipio),
         "valor_medio_mensal_municipio": float(valor_medio_mensal_municipio),
         "taxa_variacao_beneficiarios_municipio": float(taxa_variacao_beneficiarios_municipio),
-        "historico_mensal_municipio": historico_list
+        "historico_mensal_municipio": historico_list,
+        "populacao_total": populacao_total,
+        "taxa_cobertura_social": float(taxa_cobertura_social) if taxa_cobertura_social is not None else None,
+        "repasse_per_capita": float(repasse_per_capita) if repasse_per_capita is not None else None
     }
