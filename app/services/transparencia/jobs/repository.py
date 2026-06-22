@@ -62,6 +62,20 @@ def get_estado_municipios(db: Session, estado_sigla: str) -> list[dict[str, str]
         for municipio_id, nome in rows
     ]
 
+def get_all_municipios(db: Session) -> list[dict[str, str]]:
+    rows = cast(
+        list[tuple[int, str]],
+        db.query(Municipio.id_municipio, Municipio.nome)
+        .order_by(Municipio.id_municipio.asc())
+        .all(),
+    )
+    return [
+        {
+            "codigo_ibge": str(municipio_id),
+            "nome": str(nome),
+        }
+        for municipio_id, nome in rows
+    ]
 
 def get_estado_municipio_codigos(db: Session, estado_sigla: str) -> list[str]:
     return [item["codigo_ibge"] for item in get_estado_municipios(db, estado_sigla)]

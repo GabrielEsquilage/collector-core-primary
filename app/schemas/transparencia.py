@@ -74,7 +74,7 @@ class TransparenciaCargaJobSeedResponse(BaseModel):
 class TransparenciaCargaJobSeedRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    estado_sigla: str = Field(default="PR", alias="estadoSigla", min_length=2, max_length=2)
+    estado_sigla: str | None = Field(default=None, alias="estadoSigla", min_length=2, max_length=2)
     resource: Literal[
         "bolsa-familia-por-municipio",
         "auxilio-brasil-por-municipio",

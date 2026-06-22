@@ -127,14 +127,21 @@ def _resolve_seed_period(
 def _resolve_target_municipios(
     db: Session,
     *,
-    estado_sigla: str,
+    estado_sigla: str | None,
     municipio_codigos_ibge: list[str] | None,
 ) -> tuple[dict[str, str], ...]:
-    all_municipios = tuple(get_estado_municipios(db, estado_sigla))
-    if not all_municipios:
-        raise ValueError(
-            f"Nao ha municipios do estado {estado_sigla} carregados na base do IBGE."
-        )
+    from app.services.transparencia.jobs.repository import get_all_municipios
+    
+    if estado_sigla is not None:
+        all_municipios = tuple(get_estado_municipios(db, estado_sigla))
+        if not all_municipios:
+            raise ValueError(
+                f"Nao ha municipios do estado {estado_sigla} carregados na base do IBGE."
+            )
+    else:
+        all_municipios = tuple(get_all_municipios(db))
+        if not all_municipios:
+            raise ValueError("Nao ha municipios carregados na base do IBGE.")
 
     if municipio_codigos_ibge is None:
         return all_municipios
@@ -152,10 +159,11 @@ def _resolve_target_municipios(
 
     if invalid_codes:
         invalid_values = ", ".join(sorted(invalid_codes))
-        raise ValueError(
-            "Os seguintes municipios nao pertencem ao estado "
-            f"{estado_sigla}: {invalid_values}"
-        )
+        if estado_sigla:
+            msg = f"Os seguintes municipios nao pertencem ao estado {estado_sigla}: {invalid_values}"
+        else:
+            msg = f"Os seguintes municipios nao foram encontrados: {invalid_values}"
+        raise ValueError(msg)
 
     if not selected:
         raise ValueError("Nenhum municipio valido foi informado para o seed")
@@ -167,7 +175,7 @@ def seed_beneficio_jobs(
     db: Session,
     *,
     resource: str,
-    estado_sigla: str = "PR",
+    estado_sigla: str | None = None,
     job_granularity: str = JOB_GRANULARITY_MUNICIPIO_MES,
     ano: int | None = None,
     mes_ano_inicio: str | None = None,
@@ -177,7 +185,7 @@ def seed_beneficio_jobs(
     job_code_prefix: str | None = None,
     descricao_prefix: str | None = None,
 ) -> tuple[int, int, list[TransparenciaCargaJob]]:
-    normalized_estado_sigla = _normalize_estado_sigla(estado_sigla)
+    normalized_estado_sigla = _normalize_estado_sigla(estado_sigla) if estado_sigla else None
     resource_config = get_resource_config(resource)
     resolved_tipo_beneficio = tipo_beneficio or resource_config["tipo_beneficio"]
 
@@ -203,6 +211,11 @@ def seed_beneficio_jobs(
     )
 
     if job_granularity == JOB_GRANULARITY_ESTADO_MES:
+        if normalized_estado_sigla is None:
+            raise ValueError(
+                "jobGranularity=estado_mes requer que estadoSigla seja informado"
+            )
+        from app.services.transparencia.jobs.repository import get_estado_municipios
         if municipio_codigos_ibge is not None and len(target_municipios) != len(
             get_estado_municipios(db, normalized_estado_sigla)
         ):
@@ -251,7 +264,7 @@ def seed_beneficio_jobs(
                 tipo_carga=TIPO_CARGA_BENEFICIO_MUNICIPIO,
                 status=JOB_STATUS_PENDING,
                 metadata_json={
-                    "estado_sigla": normalized_estado_sigla,
+                    "estado_sigla": normalized_estado_sigla or "BR",
                     "tipo_beneficio": plan["tipo_beneficio"],
                     "resource": plan["resource"],
                     "mes_ano_inicio": plan["mes_ano_inicio"],
