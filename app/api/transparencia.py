@@ -23,6 +23,8 @@ from app.schemas.transparencia import (
     TransparenciaCargaJobResponse,
     TransparenciaCargaJobSeedRequest,
     TransparenciaCargaJobSeedResponse,
+    TransparenciaCargaJobSeedAsyncResponse,
+    TransparenciaCargaJobSeedStatusResponse,
     TransparenciaCollectRequest,
     TransparenciaCollectResponse,
     TransparenciaOrgaoListResponse,
@@ -68,43 +70,82 @@ from app.services.transparencia.jobs import (
 router = APIRouter(prefix="/transparencia", tags=["Transparencia"])
 
 
+from fastapi import BackgroundTasks
+import uuid
+from app.services.transparencia.jobs.service import seed_beneficio_jobs_task, SEED_TASKS
+
 @router.post(
     "/jobs/beneficios/seed",
-    response_model=TransparenciaCargaJobSeedResponse,
+    response_model=TransparenciaCargaJobSeedAsyncResponse,
 )
 @router.post(
     "/jobs/beneficios/parana/seed",
-    response_model=TransparenciaCargaJobSeedResponse,
+    response_model=TransparenciaCargaJobSeedAsyncResponse,
 )
 def seed_parana_jobs(
+    background_tasks: BackgroundTasks,
     payload: TransparenciaCargaJobSeedRequest | None = None,
-    db: Session = Depends(get_db),
 ):
     filters = payload or TransparenciaCargaJobSeedRequest()
-    try:
-        if payload is None:
-            created_count, existing_count, jobs = seed_parana_beneficio_jobs(db)
-        else:
-            created_count, existing_count, jobs = seed_beneficio_jobs(
-                db,
-                resource=filters.resource,
-                estado_sigla=filters.estado_sigla,
-                job_granularity=filters.job_granularity,
-                ano=filters.ano,
-                mes_ano_inicio=filters.mes_ano_inicio,
-                mes_ano_fim=filters.mes_ano_fim,
-                municipio_codigos_ibge=filters.municipio_codigos_ibge,
-                tipo_beneficio=filters.tipo_beneficio,
-                job_code_prefix=filters.job_code_prefix,
-                descricao_prefix=filters.descricao_prefix,
-            )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    task_id = str(uuid.uuid4())
+    
+    if payload is None:
+        # Fallback para o comportamento antigo de gerar apenas PR e com ano atual
+        # Porém disparado de forma async via background task
+        from datetime import datetime
+        background_tasks.add_task(
+            seed_beneficio_jobs_task,
+            task_id=task_id,
+            resource="bolsa-familia-por-municipio",
+            estado_sigla="PR",
+            job_granularity=JOB_GRANULARITY_ESTADO_MES,
+            ano=datetime.now().year,
+            mes_ano_inicio=None,
+            mes_ano_fim=None,
+            municipio_codigos_ibge=None,
+            tipo_beneficio=None,
+            job_code_prefix=None,
+            descricao_prefix=None,
+        )
+    else:
+        background_tasks.add_task(
+            seed_beneficio_jobs_task,
+            task_id=task_id,
+            resource=filters.resource,
+            estado_sigla=filters.estado_sigla,
+            job_granularity=filters.job_granularity,
+            ano=filters.ano,
+            mes_ano_inicio=filters.mes_ano_inicio,
+            mes_ano_fim=filters.mes_ano_fim,
+            municipio_codigos_ibge=filters.municipio_codigos_ibge,
+            tipo_beneficio=filters.tipo_beneficio,
+            job_code_prefix=filters.job_code_prefix,
+            descricao_prefix=filters.descricao_prefix,
+        )
 
-    return TransparenciaCargaJobSeedResponse(
-        created_count=created_count,
-        existing_count=existing_count,
-        jobs=jobs,
+    return TransparenciaCargaJobSeedAsyncResponse(
+        task_id=task_id,
+        status="processing",
+    )
+
+@router.get(
+    "/jobs/beneficios/seed/{task_id}/status",
+    response_model=TransparenciaCargaJobSeedStatusResponse,
+)
+def get_seed_status(task_id: str):
+    task_data = SEED_TASKS.get(task_id)
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+        
+    if task_data.get("status") == "error":
+        raise HTTPException(status_code=500, detail=task_data.get("error", "Unknown error"))
+        
+    return TransparenciaCargaJobSeedStatusResponse(
+        status=task_data.get("status", "processing"),
+        progress=task_data.get("progress"),
+        total=task_data.get("total"),
+        created_count=task_data.get("created_count"),
+        existing_count=task_data.get("existing_count"),
     )
 
 

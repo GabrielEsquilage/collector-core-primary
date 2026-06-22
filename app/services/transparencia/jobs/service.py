@@ -171,6 +171,11 @@ def _resolve_target_municipios(
     return tuple(selected)
 
 
+import uuid
+from typing import Callable
+
+SEED_TASKS: dict[str, dict] = {}
+
 def seed_beneficio_jobs(
     db: Session,
     *,
@@ -184,6 +189,7 @@ def seed_beneficio_jobs(
     tipo_beneficio: str | None = None,
     job_code_prefix: str | None = None,
     descricao_prefix: str | None = None,
+    progress_callback: Callable[[dict], None] | None = None,
 ) -> tuple[int, int, list[TransparenciaCargaJob]]:
     normalized_estado_sigla = _normalize_estado_sigla(estado_sigla) if estado_sigla else None
     resource_config = get_resource_config(resource)
@@ -250,7 +256,14 @@ def seed_beneficio_jobs(
     existing_count = 0
     jobs: list[TransparenciaCargaJob] = []
 
-    for plan in plans:
+    total_plans = len(plans)
+    if progress_callback:
+        progress_callback({"status": "processing", "progress": 0, "total": total_plans})
+
+    for i, plan in enumerate(plans):
+        if progress_callback and i % 50 == 0:
+            progress_callback({"status": "processing", "progress": i, "total": total_plans})
+            
         existing_job: TransparenciaCargaJob | None = get_job_by_code(db, plan["job_code"])
         if existing_job is not None:
             existing_count += 1
@@ -444,3 +457,56 @@ def delete_job(db: Session, job_id: int) -> None:
         )
 
     repository_delete_job(db, job)
+
+def seed_beneficio_jobs_task(
+    task_id: str,
+    resource: str,
+    estado_sigla: str | None,
+    job_granularity: str,
+    ano: int | None,
+    mes_ano_inicio: str | None,
+    mes_ano_fim: str | None,
+    municipio_codigos_ibge: list[str] | None,
+    tipo_beneficio: str | None,
+    job_code_prefix: str | None,
+    descricao_prefix: str | None,
+):
+    from app.database import SessionLocal
+    db = SessionLocal()
+    
+    def update_progress(data: dict):
+        if task_id not in SEED_TASKS:
+            SEED_TASKS[task_id] = {}
+        SEED_TASKS[task_id].update(data)
+        
+    try:
+        SEED_TASKS[task_id] = {"status": "processing"}
+        created, existing, _ = seed_beneficio_jobs(
+            db,
+            resource=resource,
+            estado_sigla=estado_sigla,
+            job_granularity=job_granularity,
+            ano=ano,
+            mes_ano_inicio=mes_ano_inicio,
+            mes_ano_fim=mes_ano_fim,
+            municipio_codigos_ibge=municipio_codigos_ibge,
+            tipo_beneficio=tipo_beneficio,
+            job_code_prefix=job_code_prefix,
+            descricao_prefix=descricao_prefix,
+            progress_callback=update_progress
+        )
+        SEED_TASKS[task_id].update({
+            "status": "completed",
+            "progress": SEED_TASKS[task_id].get("total", 0),
+            "created_count": created,
+            "existing_count": existing
+        })
+    except Exception as e:
+        if task_id not in SEED_TASKS:
+            SEED_TASKS[task_id] = {}
+        SEED_TASKS[task_id].update({
+            "status": "error",
+            "error": str(e)
+        })
+    finally:
+        db.close()

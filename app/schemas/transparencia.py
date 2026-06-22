@@ -65,6 +65,20 @@ class TransparenciaCargaJobListResponse(BaseModel):
     items: list[TransparenciaCargaJobResponse]
 
 
+class TransparenciaCargaJobSeedAsyncResponse(BaseModel):
+    task_id: str
+    status: str
+
+
+class TransparenciaCargaJobSeedStatusResponse(BaseModel):
+    status: str
+    progress: int | None = None
+    total: int | None = None
+    created_count: int | None = None
+    existing_count: int | None = None
+
+
+
 class TransparenciaCargaJobSeedResponse(BaseModel):
     created_count: int
     existing_count: int
