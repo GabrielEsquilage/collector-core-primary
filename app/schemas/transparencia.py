@@ -329,6 +329,9 @@ class BeneficioAnalyticsMunicipioKpisData(BaseModel):
     valor_medio_mensal_municipio: float
     taxa_variacao_beneficiarios_municipio: float
     historico_mensal_municipio: list[BeneficioAnalyticsMunicipioKpisHistoricoItem]
+    populacao_total: int | str | None = None
+    taxa_cobertura_social: float | str | None = None
+    repasse_per_capita: float | str | None = None
 
 class BeneficioAnalyticsMunicipioKpisResponse(BaseModel):
     tipo_beneficio: str

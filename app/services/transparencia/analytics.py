@@ -164,20 +164,27 @@ def get_municipio_kpis_beneficio(db: Session, tipo_beneficio: str, ano: int, uf:
     )
 
     populacao_total = int(populacao_query[0]) if populacao_query else None
-    taxa_cobertura_social = None
-    repasse_per_capita = None
-
+    
     if populacao_total and populacao_total > 0:
         taxa_cobertura_social = (media_beneficiarios_municipio / populacao_total) * 100.0
         valor_total_ano = valor_medio_mensal_municipio * 12.0
         repasse_per_capita = valor_total_ano / populacao_total
+        
+        pop_output = populacao_total
+        taxa_output = float(taxa_cobertura_social)
+        repasse_output = float(repasse_per_capita)
+    else:
+        msg_indisponivel = "Dados do Censo indisponíveis para este município."
+        pop_output = msg_indisponivel
+        taxa_output = msg_indisponivel
+        repasse_output = msg_indisponivel
 
     return {
         "media_beneficiarios_municipio": float(media_beneficiarios_municipio),
         "valor_medio_mensal_municipio": float(valor_medio_mensal_municipio),
         "taxa_variacao_beneficiarios_municipio": float(taxa_variacao_beneficiarios_municipio),
         "historico_mensal_municipio": historico_list,
-        "populacao_total": populacao_total,
-        "taxa_cobertura_social": float(taxa_cobertura_social) if taxa_cobertura_social is not None else None,
-        "repasse_per_capita": float(repasse_per_capita) if repasse_per_capita is not None else None
+        "populacao_total": pop_output,
+        "taxa_cobertura_social": taxa_output,
+        "repasse_per_capita": repasse_output
     }
