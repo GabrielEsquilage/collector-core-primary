@@ -64,8 +64,8 @@ async def executar_carga_manual(anos: list[int], delay_segundos: float = 90.0, l
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Script de Carga Histórica do SICONFI")
     
-    parser.add_argument("--anos", nargs="+", type=int, default=[2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025], 
-                        help="Anos a serem processados (ex: --anos 2018 2019)")
+    parser.add_argument("--anos", nargs="+", type=int, default=[2020, 2021, 2022, 2023, 2024, 2025], 
+                        help="Anos a serem processados (ex: --anos 2020 2021)")
     
     parser.add_argument("--delay", type=float, default=90.0, 
                         help="Espera entre os entes em segundos (Padrão: 90.0)")

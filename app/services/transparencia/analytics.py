@@ -2,7 +2,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract, Integer
 
-from app.models import FatoRepasseMunicipio, Municipio, Estado
+from app.models import FatoRepasseMunicipio, Municipio, Estado, FatoDemografia
 
 def get_serie_historica_beneficio(db: Session, tipo_beneficio: str, codigo_ibge: str):
     query = (
@@ -102,3 +102,89 @@ def get_agregacao_beneficio(db: Session, tipo_beneficio: str, ano: int, uf: str 
         }
         for r in results
     ]
+
+def get_municipio_kpis_beneficio(db: Session, tipo_beneficio: str, ano: int, uf: str, codigo_ibge: str):
+    # 1. historico_mensal_municipio
+    historico = (
+        db.query(
+            extract('month', FatoRepasseMunicipio.data_referencia).label('mes'),
+            func.sum(FatoRepasseMunicipio.valor).label('valor'),
+            func.sum(FatoRepasseMunicipio.quantidade_beneficiados).label('quantidade_beneficiados')
+        )
+        .filter(
+            FatoRepasseMunicipio.tipo_beneficio == tipo_beneficio,
+            FatoRepasseMunicipio.municipio_codigo_ibge == codigo_ibge,
+            extract('year', FatoRepasseMunicipio.data_referencia) == ano
+        )
+        .group_by('mes')
+        .order_by('mes')
+    ).all()
+    
+    historico_list = [
+        {
+            "mes": int(r.mes),
+            "valor": float(r.valor or 0),
+            "quantidade_beneficiados": int(r.quantidade_beneficiados or 0)
+        }
+        for r in historico
+    ]
+    
+    # 2. valor_medio_mensal_municipio
+    if historico_list:
+        valor_medio_mensal_municipio = sum(item["valor"] for item in historico_list) / 12.0
+    else:
+        valor_medio_mensal_municipio = 0.0
+
+    # 3. media_beneficiarios_municipio
+    if historico_list:
+        media_beneficiarios_municipio = sum(item["quantidade_beneficiados"] for item in historico_list) / 12.0
+    else:
+        media_beneficiarios_municipio = 0.0
+
+    # 4. taxa_variacao_beneficiarios_municipio (Variação mensal do último mês disponível)
+    if len(historico_list) >= 2:
+        last_month = historico_list[-1]["quantidade_beneficiados"]
+        prev_month = historico_list[-2]["quantidade_beneficiados"]
+        if prev_month > 0:
+            taxa_variacao_beneficiarios_municipio = (last_month - prev_month) / prev_month
+        else:
+            taxa_variacao_beneficiarios_municipio = 0.0
+    else:
+        taxa_variacao_beneficiarios_municipio = 0.0
+
+    # 5. Censo Demografico / Populacao (Busca o registro cronologicamente mais proximo ao ano consultado)
+    populacao_query = (
+        db.query(FatoDemografia.valor_estatistico)
+        .filter(
+            FatoDemografia.codigo_ibge_municipio == codigo_ibge,
+            FatoDemografia.variavel_codigo == '93'
+        )
+        .order_by(func.abs(FatoDemografia.ano - ano), FatoDemografia.ano.desc())
+        .first()
+    )
+
+    populacao_total = int(populacao_query[0]) if populacao_query else None
+    
+    if populacao_total and populacao_total > 0:
+        taxa_cobertura_social = (media_beneficiarios_municipio / populacao_total) * 100.0
+        valor_total_ano = valor_medio_mensal_municipio * 12.0
+        repasse_per_capita = valor_total_ano / populacao_total
+        
+        pop_output = populacao_total
+        taxa_output = float(taxa_cobertura_social)
+        repasse_output = float(repasse_per_capita)
+    else:
+        msg_indisponivel = "Dados do Censo indisponíveis para este município."
+        pop_output = msg_indisponivel
+        taxa_output = msg_indisponivel
+        repasse_output = msg_indisponivel
+
+    return {
+        "media_beneficiarios_municipio": float(media_beneficiarios_municipio),
+        "valor_medio_mensal_municipio": float(valor_medio_mensal_municipio),
+        "taxa_variacao_beneficiarios_municipio": float(taxa_variacao_beneficiarios_municipio),
+        "historico_mensal_municipio": historico_list,
+        "populacao_total": pop_output,
+        "taxa_cobertura_social": taxa_output,
+        "repasse_per_capita": repasse_output
+    }

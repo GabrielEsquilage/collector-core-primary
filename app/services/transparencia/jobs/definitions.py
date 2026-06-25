@@ -114,7 +114,7 @@ def _build_monthly_job_plans(
 
 def build_monthly_job_plans(
     *,
-    estado_sigla: str,
+    estado_sigla: str | None,
     resource: str,
     start: str,
     end: str,
@@ -125,8 +125,8 @@ def build_monthly_job_plans(
 ) -> tuple[JobPlan, ...]:
     config = get_resource_config(resource)
     resolved_tipo_beneficio = tipo_beneficio or config["tipo_beneficio"]
-    resolved_job_code_prefix = job_code_prefix or f"{config['job_code_prefix']}-{estado_sigla.lower()}"
-    resolved_descricao_prefix = descricao_prefix or f"{config['descricao_prefix']} {estado_sigla.upper()}"
+    resolved_job_code_prefix = job_code_prefix or (f"{config['job_code_prefix']}-{estado_sigla.lower()}" if estado_sigla else config['job_code_prefix'])
+    resolved_descricao_prefix = descricao_prefix or (f"{config['descricao_prefix']} {estado_sigla.upper()}" if estado_sigla else config['descricao_prefix'])
 
     return _build_monthly_job_plans(
         prefix=resolved_job_code_prefix,
@@ -141,7 +141,7 @@ def build_monthly_job_plans(
 
 def build_municipio_monthly_job_plans(
     *,
-    estado_sigla: str,
+    estado_sigla: str | None,
     resource: str,
     start: str,
     end: str,
@@ -152,8 +152,8 @@ def build_municipio_monthly_job_plans(
 ) -> tuple[JobPlan, ...]:
     config = get_resource_config(resource)
     resolved_tipo_beneficio = tipo_beneficio or config["tipo_beneficio"]
-    resolved_job_code_prefix = job_code_prefix or f"{config['job_code_prefix']}-{estado_sigla.lower()}"
-    resolved_descricao_prefix = descricao_prefix or f"{config['descricao_prefix']} {estado_sigla.upper()}"
+    resolved_job_code_prefix = job_code_prefix or (f"{config['job_code_prefix']}-{estado_sigla.lower()}" if estado_sigla else config['job_code_prefix'])
+    resolved_descricao_prefix = descricao_prefix or (f"{config['descricao_prefix']} {estado_sigla.upper()}" if estado_sigla else config['descricao_prefix'])
 
     plans: list[JobPlan] = []
     for mes_ano in iter_mes_ano(start, end):

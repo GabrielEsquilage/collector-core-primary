@@ -65,6 +65,30 @@ class TransparenciaCargaJobListResponse(BaseModel):
     items: list[TransparenciaCargaJobResponse]
 
 
+class TransparenciaCargaJobSeedAsyncResponse(BaseModel):
+    task_id: str
+    status: str
+
+
+class TransparenciaCargaJobSeedStatusResponse(BaseModel):
+    status: str
+    progress: int | None = None
+    total: int | None = None
+    created_count: int | None = None
+    existing_count: int | None = None
+
+
+class TransparenciaCargaJobSeedActiveTaskResponse(BaseModel):
+    task_id: str
+    status: str
+    progress: int | None = None
+    total: int | None = None
+
+
+class TransparenciaCargaJobSeedActiveTasksResponse(BaseModel):
+    tasks: list[TransparenciaCargaJobSeedActiveTaskResponse]
+
+
 class TransparenciaCargaJobSeedResponse(BaseModel):
     created_count: int
     existing_count: int
@@ -74,7 +98,7 @@ class TransparenciaCargaJobSeedResponse(BaseModel):
 class TransparenciaCargaJobSeedRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    estado_sigla: str = Field(default="PR", alias="estadoSigla", min_length=2, max_length=2)
+    estado_sigla: str | None = Field(default=None, alias="estadoSigla", min_length=2, max_length=2)
     resource: Literal[
         "bolsa-familia-por-municipio",
         "auxilio-brasil-por-municipio",
@@ -318,3 +342,24 @@ class BeneficioAnalyticsAgregacaoResponse(BaseModel):
     ano: int
     uf: str | None = None
     data: list[BeneficioAnalyticsAgregacaoItem]
+
+class BeneficioAnalyticsMunicipioKpisHistoricoItem(BaseModel):
+    mes: int
+    valor: float
+    quantidade_beneficiados: int
+
+class BeneficioAnalyticsMunicipioKpisData(BaseModel):
+    media_beneficiarios_municipio: float
+    valor_medio_mensal_municipio: float
+    taxa_variacao_beneficiarios_municipio: float
+    historico_mensal_municipio: list[BeneficioAnalyticsMunicipioKpisHistoricoItem]
+    populacao_total: int | str | None = None
+    taxa_cobertura_social: float | str | None = None
+    repasse_per_capita: float | str | None = None
+
+class BeneficioAnalyticsMunicipioKpisResponse(BaseModel):
+    tipo_beneficio: str
+    ano: int
+    uf: str
+    codigo_ibge: str
+    data: BeneficioAnalyticsMunicipioKpisData
