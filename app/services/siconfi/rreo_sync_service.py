@@ -3,6 +3,7 @@ import pandas as pd
 import duckdb
 from loguru import logger
 from typing import List
+import asyncio
 
 from .siconfi_service import SiconfiService
 from .siconfi_catalog import SICONFI_CATALOG, IndicadorMacro
@@ -13,16 +14,21 @@ class RreoSyncService:
         self.silver_path = os.path.join(data_lake_root, "silver", "siconfi_rreo")
         self.gold_path = os.path.join(data_lake_root, "gold", "siconfi_macro")
 
-    async def extract_and_load_silver(self, entes_ibge: List[str], ano: int, periodos: List[int]):
+    async def extract_and_load_silver(self, entes_ibge: List[str], ano: int, periodos: List[int], delay_periodos: float = 10.0):
         logger.info(f"Iniciando extração RREO {ano} para {len(entes_ibge)} entes...")
         all_data = []
         
         for ente in entes_ibge:
-            for periodo in periodos:
+            for i, periodo in enumerate(periodos):
                 try:
                     logger.debug(f"Coletando RREO: {ente} | Ano: {ano} | Bimestre: {periodo}")
                     rreo_data = await self.service.get_rreo(ano, periodo, 'RREO', ente)
                     all_data.extend(rreo_data)
+                    
+                    # Aplica o delay entre os bimestres, exceto no último
+                    if i < len(periodos) - 1 and delay_periodos > 0:
+                        logger.debug(f"Pausa de {delay_periodos}s entre bimestres...")
+                        await asyncio.sleep(delay_periodos)
                 except Exception as e:
                     logger.error(f"Erro ao coletar Ente {ente} ({ano}/{periodo}): {e}")
                     
