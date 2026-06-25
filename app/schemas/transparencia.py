@@ -78,6 +78,16 @@ class TransparenciaCargaJobSeedStatusResponse(BaseModel):
     existing_count: int | None = None
 
 
+class TransparenciaCargaJobSeedActiveTaskResponse(BaseModel):
+    task_id: str
+    status: str
+    progress: int | None = None
+    total: int | None = None
+
+
+class TransparenciaCargaJobSeedActiveTasksResponse(BaseModel):
+    tasks: list[TransparenciaCargaJobSeedActiveTaskResponse]
+
 
 class TransparenciaCargaJobSeedResponse(BaseModel):
     created_count: int

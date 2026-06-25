@@ -25,6 +25,7 @@ from app.schemas.transparencia import (
     TransparenciaCargaJobSeedResponse,
     TransparenciaCargaJobSeedAsyncResponse,
     TransparenciaCargaJobSeedStatusResponse,
+    TransparenciaCargaJobSeedActiveTasksResponse,
     TransparenciaCollectRequest,
     TransparenciaCollectResponse,
     TransparenciaOrgaoListResponse,
@@ -127,6 +128,24 @@ def seed_parana_jobs(
         task_id=task_id,
         status="processing",
     )
+
+@router.get(
+    "/jobs/beneficios/seed/active",
+    response_model=TransparenciaCargaJobSeedActiveTasksResponse,
+)
+def get_active_seed_tasks():
+    active_tasks = [
+        {
+            "task_id": k,
+            "status": v.get("status", "processing"),
+            "progress": v.get("progress"),
+            "total": v.get("total")
+        }
+        for k, v in SEED_TASKS.items()
+        if v.get("status") == "processing"
+    ]
+    return TransparenciaCargaJobSeedActiveTasksResponse(tasks=active_tasks)
+
 
 @router.get(
     "/jobs/beneficios/seed/{task_id}/status",
